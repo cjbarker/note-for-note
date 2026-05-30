@@ -1,8 +1,11 @@
-// Renders the transcribed MusicXML as engraved sheet music using
-// OpenSheetMusicDisplay, plus download buttons for the MusicXML and MIDI.
-import { lazy, Suspense, useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
-import { midiBlobFromBase64, type TranscriptionResult } from "../api";
+import {
+  midiBlobFromBase64,
+  type TranscriptionResult,
+  type TranscriptionStats,
+} from "../api";
+import NotationControls from "./NotationControls";
 
 // Lazy-loaded: html-midi-player pulls in Tone.js + @magenta/music (~2 MB), which
 // we only need once a transcription exists. Splitting it keeps initial load light.
@@ -10,6 +13,7 @@ const MidiPlayer = lazy(() => import("./MidiPlayer"));
 
 interface Props {
   result: TranscriptionResult;
+  audioBlob: Blob | null;
 }
 
 function download(blob: Blob, filename: string) {
@@ -21,9 +25,25 @@ function download(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-export default function SheetMusic({ result }: Props) {
+// Plays back the user's original recording, for A/B comparison with the MIDI.
+function OriginalAudio({ blob }: { blob: Blob }) {
+  const url = useMemo(() => URL.createObjectURL(blob), [blob]);
+  useEffect(() => () => URL.revokeObjectURL(url), [url]);
+  return <audio className="orig-audio" controls src={url} />;
+}
+
+export default function SheetMusic({ result, audioBlob }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
+
+  // Notation (musicXml + stats) can be re-rendered client-side via renotate, so
+  // track it in state, re-initialized whenever a new transcription arrives.
+  const [musicXml, setMusicXml] = useState(result.musicXml);
+  const [stats, setStats] = useState<TranscriptionStats>(result.stats);
+  useEffect(() => {
+    setMusicXml(result.musicXml);
+    setStats(result.stats);
+  }, [result]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -37,7 +57,7 @@ export default function SheetMusic({ result }: Props) {
 
     let cancelled = false;
     osmdRef.current
-      .load(result.musicXml)
+      .load(musicXml)
       .then(() => {
         if (!cancelled) osmdRef.current?.render();
       })
@@ -48,9 +68,7 @@ export default function SheetMusic({ result }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [result.musicXml]);
-
-  const { stats } = result;
+  }, [musicXml]);
 
   return (
     <div className="sheet-music">
@@ -58,13 +76,42 @@ export default function SheetMusic({ result }: Props) {
         <span>{stats.note_count} notes</span>
         <span>{stats.duration_seconds.toFixed(1)}s</span>
         <span>~{stats.tempo_bpm} BPM</span>
+        <span>{stats.time_signature}</span>
       </div>
+
+      <NotationControls
+        midiBase64={result.midiBase64}
+        stats={stats}
+        onRenotated={(xml, st) => {
+          setMusicXml(xml);
+          setStats(st);
+        }}
+      />
+
+      {stats.note_count > 0 && (
+        <div className="playback">
+          <div className="player-block">
+            <span className="playback-label">Original audio</span>
+            {audioBlob ? (
+              <OriginalAudio blob={audioBlob} />
+            ) : (
+              <span className="muted">unavailable</span>
+            )}
+          </div>
+          <div className="player-block">
+            <span className="playback-label">Transcription (QA)</span>
+            <Suspense fallback={<span className="playback-loading">Loading player…</span>}>
+              <MidiPlayer midiBase64={result.midiBase64} />
+            </Suspense>
+          </div>
+        </div>
+      )}
 
       <div className="downloads">
         <button
           className="button small"
           onClick={() =>
-            download(new Blob([result.musicXml], { type: "application/xml" }), "transcription.musicxml")
+            download(new Blob([musicXml], { type: "application/xml" }), "transcription.musicxml")
           }
         >
           Download MusicXML
@@ -76,15 +123,6 @@ export default function SheetMusic({ result }: Props) {
           Download MIDI
         </button>
       </div>
-
-      {stats.note_count > 0 && (
-        <div className="playback">
-          <span className="playback-label">Listen (QA):</span>
-          <Suspense fallback={<span className="playback-loading">Loading player…</span>}>
-            <MidiPlayer midiBase64={result.midiBase64} />
-          </Suspense>
-        </div>
-      )}
 
       <div className="score" ref={containerRef} />
     </div>

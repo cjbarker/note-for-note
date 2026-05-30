@@ -107,8 +107,71 @@ header h1 {
   margin-bottom: 1rem;
 }
 
-.playback {
+.notation-controls {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
   margin-bottom: 1.25rem;
+  padding: 0.75rem 1rem;
+  background: #f6f7fb;
+  border: 1px solid #e3e6ef;
+  border-radius: 8px;
+}
+
+.notation-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.9rem;
+  color: #5a6072;
+}
+
+.notation-controls input[type="number"] {
+  width: 4.5rem;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid #c7ccda;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.notation-controls select {
+  padding: 0.3rem 0.4rem;
+  border: 1px solid #c7ccda;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.notation-controls .unit {
+  color: #8a90a2;
+  font-size: 0.8rem;
+}
+
+.notation-status {
+  color: #2f6df0;
+  font-size: 0.85rem;
+}
+
+.playback {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.player-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.orig-audio {
+  height: 40px;
+}
+
+.muted {
+  color: #8a90a2;
+  font-size: 0.85rem;
 }
 
 .playback-label {

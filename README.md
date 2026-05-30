@@ -3,8 +3,11 @@
 Play piano, get sheet music. Note-for-Note takes audio of a piano performance —
 **uploaded as a file or recorded live in the browser** — and performs
 **Automatic Music Transcription (AMT)**, converting the sound wave note-for-note
-into rendered, downloadable sheet music. You can also **play the transcription
-back in the browser** (sampled piano) to QA the result by ear.
+into rendered, downloadable sheet music — engraved on a **grand staff**
+(treble + bass). You can adjust **tempo and time signature** to correct the
+rhythm (re-rendered instantly, without re-running the model), **play the
+transcription back** (sampled piano), and **A/B it against your original
+recording** to QA the result by ear.
 
 Piano is *polyphonic* (chords / many notes at once), so this uses
 [Spotify's **basic-pitch**](https://github.com/spotify/basic-pitch) neural model
@@ -64,9 +67,10 @@ npm install
 cp .env.example .env          # optional: point VITE_API_URL at your backend
 npm run dev                   # serves http://localhost:5173
 ```
-Open http://localhost:5173, upload a piano clip **or** click *Record mic*, and the
-sheet music renders with an in-browser **playback** control (sampled piano +
-piano-roll) and download buttons for MusicXML and MIDI.
+Open http://localhost:5173, upload a piano clip **or** click *Record mic*. The
+sheet music renders on a grand staff with **tempo / time-signature controls**
+(instant re-notation), **Original vs Transcription** playback for A/B QA, and
+download buttons for MusicXML and MIDI.
 
 ## Testing
 ```bash
