@@ -1,8 +1,12 @@
 // Renders the transcribed MusicXML as engraved sheet music using
 // OpenSheetMusicDisplay, plus download buttons for the MusicXML and MIDI.
-import { useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
 import { midiBlobFromBase64, type TranscriptionResult } from "../api";
+
+// Lazy-loaded: html-midi-player pulls in Tone.js + @magenta/music (~2 MB), which
+// we only need once a transcription exists. Splitting it keeps initial load light.
+const MidiPlayer = lazy(() => import("./MidiPlayer"));
 
 interface Props {
   result: TranscriptionResult;
@@ -72,6 +76,15 @@ export default function SheetMusic({ result }: Props) {
           Download MIDI
         </button>
       </div>
+
+      {stats.note_count > 0 && (
+        <div className="playback">
+          <span className="playback-label">Listen (QA):</span>
+          <Suspense fallback={<span className="playback-loading">Loading player…</span>}>
+            <MidiPlayer midiBase64={result.midiBase64} />
+          </Suspense>
+        </div>
+      )}
 
       <div className="score" ref={containerRef} />
     </div>
