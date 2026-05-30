@@ -1,0 +1,124 @@
+:root {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #1f2330;
+  background: #f6f7fb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+}
+
+.tagline {
+  margin: 0 0 1.5rem;
+  color: #5a6072;
+}
+
+.audio-input .input-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1.1rem;
+  border: 1px solid #c7ccda;
+  border-radius: 8px;
+  background: #fff;
+  color: #1f2330;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.button:hover:not(.disabled):not(:disabled) {
+  background: #eef0f7;
+}
+
+.button:disabled,
+.button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button.recording {
+  border-color: #e0464b;
+  color: #e0464b;
+}
+
+.button.small {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.source {
+  margin-top: 1rem;
+  color: #5a6072;
+  font-size: 0.9rem;
+}
+
+.status {
+  margin-top: 1rem;
+  color: #2f6df0;
+}
+
+.error {
+  margin-top: 1rem;
+  color: #e0464b;
+}
+
+.sheet-music {
+  margin-top: 2rem;
+  background: #fff;
+  border: 1px solid #e3e6ef;
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.stats {
+  display: flex;
+  gap: 1.25rem;
+  color: #5a6072;
+  font-size: 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+.downloads {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.score {
+  overflow-x: auto;
+}
+
+footer {
+  margin-top: 3rem;
+  color: #8a90a2;
+  font-size: 0.8rem;
+}
+
+footer code {
+  background: #eceef5;
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+}

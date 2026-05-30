@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# Env / local
+.env
+.env.local
+*.local
+
+# OS
+.DS_Store
+
+# Audio scratch / generated
+*.wav.tmp
+backend/scratch/
