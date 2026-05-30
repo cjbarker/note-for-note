@@ -1,6 +1,7 @@
 # Note-for-Note — Backend
 
-FastAPI service that transcribes piano audio to sheet music.
+FastAPI service that transcribes piano audio to sheet music. Dependencies are
+managed with [**uv**](https://docs.astral.sh/uv/).
 
 ## Pipeline
 
@@ -25,27 +26,38 @@ and transcription runs in a threadpool so the event loop stays responsive.
 
 ## Run
 
+Prerequisites: [uv](https://docs.astral.sh/uv/getting-started/installation/) and
+ffmpeg (`sudo apt-get install -y ffmpeg`, for non-WAV decoding).
+
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install --upgrade pip wheel "setuptools<81"
-pip install -r requirements.txt
-sudo apt-get install -y ffmpeg          # for non-WAV decoding
-uvicorn app.main:app --reload
+uv sync                                   # create .venv + install from uv.lock
+uv run uvicorn app.main:app --reload      # serves http://localhost:8000
 ```
 
+`uv sync` reads `pyproject.toml` / `uv.lock` and provisions an isolated `.venv`
+automatically — no manual virtualenv activation needed.
+
 ### Notes on dependencies
-- **`setuptools<81`**: `resampy` (pulled in by basic-pitch) imports `pkg_resources`,
-  which setuptools removed in v81. The pin also stays new enough to build
-  `pretty_midi`'s legacy `setup.py`.
+- **`setuptools<81`** is a runtime dependency: `resampy` (pulled in by basic-pitch)
+  imports `pkg_resources`, which setuptools removed in v81.
 - On Linux/Python 3.11, basic-pitch installs the **TensorFlow** runtime. The first
   request (or app startup) loads the model — expect a few seconds of warm-up.
 
 ## Test
 ```bash
-pytest          # full decode → transcribe → notation smoke test
+uv run pytest          # full decode → transcribe → notation smoke test
 ```
+The suite synthesizes known tones in-memory and runs the whole pipeline (it loads
+the model, so the first run is slow).
 
 ## Tuning transcription
 Edit `TranscriptionParams` in `app/transcription.py`:
 `onset_threshold`, `frame_threshold`, `minimum_note_length_ms`, and the piano
 frequency bounds. Lower thresholds detect more (and more spurious) notes.
+
+## Managing dependencies
+```bash
+uv add <package>          # add a runtime dependency (updates pyproject.toml + uv.lock)
+uv add --dev <package>    # add a dev dependency
+uv lock --upgrade         # refresh the lockfile
+```

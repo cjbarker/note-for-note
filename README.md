@@ -44,14 +44,12 @@ API is usable by any client — `curl`, mobile, other front-ends — not just th
 ## Quick start
 
 ### Backend
+Dependencies are managed with [uv](https://docs.astral.sh/uv/).
 ```bash
 cd backend
-python3 -m venv .venv && source .venv/bin/activate
-pip install --upgrade pip wheel "setuptools<81"   # <81 keeps pkg_resources for resampy
-pip install -r requirements.txt
-# ffmpeg is needed to decode non-WAV uploads server-side:
-sudo apt-get install -y ffmpeg
-uvicorn app.main:app --reload      # serves http://localhost:8000
+sudo apt-get install -y ffmpeg            # decodes non-WAV uploads server-side
+uv sync                                   # create .venv + install from uv.lock
+uv run uvicorn app.main:app --reload      # serves http://localhost:8000
 ```
 Check it: `curl localhost:8000/api/health` → `{"status":"ok","model_loaded":true,...}`
 
@@ -69,7 +67,7 @@ sheet music renders with download buttons for MusicXML and MIDI.
 
 ## Testing
 ```bash
-cd backend && source .venv/bin/activate && pytest
+cd backend && uv run pytest
 ```
 The suite synthesizes known tones in-memory and runs the full
 decode → transcribe → notation pipeline (it loads the model, so first run is slow).

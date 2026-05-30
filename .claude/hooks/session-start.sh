@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SessionStart hook: ensure this ephemeral environment has what the backend
-# needs — ffmpeg (for decoding non-WAV audio) and the Python venv with deps.
+# needs — ffmpeg (for decoding non-WAV audio) and the uv-managed Python env.
 # Safe to re-run; each step is a no-op if already satisfied.
 set -uo pipefail
 
@@ -15,16 +15,20 @@ if ! command -v ffmpeg >/dev/null 2>&1; then
     || echo "[session-start] WARN: could not install ffmpeg (non-WAV decoding will fail)"
 fi
 
-# 2. Python venv + dependencies
-if [ ! -d "$BACKEND/.venv" ]; then
-  echo "[session-start] creating backend venv + installing deps (this can take a few minutes)..."
-  python3 -m venv "$BACKEND/.venv"
-  # shellcheck disable=SC1091
-  source "$BACKEND/.venv/bin/activate"
-  pip install --quiet --upgrade pip wheel "setuptools<81"
-  pip install --quiet -r "$BACKEND/requirements.txt" \
-    || echo "[session-start] WARN: backend dependency install failed"
+# 2. uv (Python package manager)
+if ! command -v uv >/dev/null 2>&1; then
+  echo "[session-start] installing uv..."
+  pip install --quiet uv >/dev/null 2>&1 \
+    || curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null 2>&1 \
+    || echo "[session-start] WARN: could not install uv"
 fi
 
-echo "[session-start] backend ready. Run: source backend/.venv/bin/activate && uvicorn app.main:app --reload (from backend/)"
+# 3. Sync backend dependencies into the uv-managed venv (.venv).
+if command -v uv >/dev/null 2>&1; then
+  echo "[session-start] syncing backend deps with uv (first run can take a few minutes)..."
+  (cd "$BACKEND" && uv sync) >/dev/null 2>&1 \
+    || echo "[session-start] WARN: uv sync failed"
+fi
+
+echo "[session-start] backend ready. Run from backend/: uv run uvicorn app.main:app --reload"
 exit 0
