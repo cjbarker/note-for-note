@@ -5,6 +5,7 @@ import { transcribe, type TranscriptionResult } from "./api";
 
 export default function App() {
   const [result, setResult] = useState<TranscriptionResult | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sourceName, setSourceName] = useState<string | null>(null);
@@ -14,6 +15,7 @@ export default function App() {
     setResult(null);
     setBusy(true);
     setSourceName(name);
+    setAudioBlob(wav); // keep the normalized WAV for A/B playback vs the MIDI
     try {
       const res = await transcribe(wav, name.replace(/\.[^.]+$/, "") + ".wav");
       setResult(res);
@@ -40,7 +42,7 @@ export default function App() {
       {busy && <p className="status">Transcribing… (the first run loads the model and may take a moment)</p>}
       {error && <p className="error">{error}</p>}
 
-      {result && <SheetMusic result={result} />}
+      {result && <SheetMusic result={result} audioBlob={audioBlob} />}
 
       <footer>
         <p>

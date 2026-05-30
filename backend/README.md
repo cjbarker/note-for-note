@@ -19,10 +19,13 @@ app/schemas.py        Pydantic response models
 | Method | Path              | Description |
 |--------|-------------------|-------------|
 | GET    | `/api/health`     | `{status, model_loaded, ffmpeg_available}` |
-| POST   | `/api/transcribe` | multipart `file` (any audio format) → `{musicXml, midiBase64, stats}` |
+| POST   | `/api/transcribe` | multipart `file` (any audio format) + optional `tempo`, `time_signature` → `{musicXml, midiBase64, stats}` |
+| POST   | `/api/renotate`   | JSON `{midiBase64, tempo, timeSignature, splitPoint?}` → `{musicXml, stats}` (fast; re-runs only music21, not the model) |
 
-`stats` = `{note_count, duration_seconds, tempo_bpm}`. Uploads are capped at 25 MB
-and transcription runs in a threadpool so the event loop stays responsive.
+`stats` = `{note_count, duration_seconds, tempo_bpm, time_signature}`. Uploads are
+capped at 25 MB and transcription runs in a threadpool so the event loop stays
+responsive. Notation renders a treble+bass **grand staff** (split at middle C);
+tempo (auto-estimated via librosa, user-overridable) drives note durations.
 
 ## Run
 

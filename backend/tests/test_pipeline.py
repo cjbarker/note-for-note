@@ -2,11 +2,12 @@
 
 We synthesize known-pitch sine tones in-memory, run them through the full
 decode -> transcribe -> notation pipeline, and assert the output is sensible.
-These tests load the basic-pitch model and are therefore slow-ish; they double
-as the project's smoke test.
+The basic-pitch model load + inference is slow, so the transcribed MIDI is
+produced once via a session-scoped fixture and reused across notation tests.
 """
 from __future__ import annotations
 
+import base64
 import io
 
 import numpy as np
@@ -39,6 +40,17 @@ def _melody_wav() -> bytes:
     return _wav_bytes(np.concatenate(parts))
 
 
+@pytest.fixture(scope="session")
+def melody_midi():
+    """Transcribe the arpeggio once; reused across notation tests (slow step)."""
+    path = audio.write_normalized_wav(_melody_wav(), "melody.wav")
+    return transcription.transcribe_wav(path)
+
+
+def _count_measures(xml: str) -> int:
+    return xml.count("<measure ")
+
+
 def test_load_audio_wav_roundtrip():
     samples = _sine(440.0, 0.5)
     out, sr = audio.load_audio(_wav_bytes(samples), "tone.wav")
@@ -54,20 +66,52 @@ def test_write_normalized_wav_resamples():
     assert sr == audio.TARGET_SR
 
 
-def test_full_pipeline_detects_notes():
-    wav = _melody_wav()
-    path = audio.write_normalized_wav(wav, "melody.wav")
-    midi = transcription.transcribe_wav(path)
+def test_estimate_tempo_returns_plausible():
+    # A steady pulse train should yield a finite, positive BPM in a sane range.
+    pulse = np.zeros(int(SR * 4), dtype=np.float32)
+    for i in range(8):  # a click every 0.5s -> 120 BPM
+        pulse[int(i * 0.5 * SR)] = 1.0
+    bpm = audio.estimate_tempo(pulse, SR)
+    assert np.isfinite(bpm) and 30.0 <= bpm <= 300.0
 
-    note_count = sum(len(inst.notes) for inst in midi.instruments)
+
+def test_full_pipeline_detects_notes(melody_midi):
+    note_count = sum(len(inst.notes) for inst in melody_midi.instruments)
     assert note_count >= 1, "expected at least one note from the arpeggio"
 
-    xml = notation.midi_to_musicxml(midi)
+    xml = notation.midi_to_musicxml(melody_midi)
     assert "<score-partwise" in xml or "<?xml" in xml
 
-    stats = notation.compute_stats(midi)
+    stats = notation.compute_stats(melody_midi)
     assert stats.note_count == note_count
     assert stats.duration_seconds > 0
+
+
+def test_grand_staff_in_musicxml(melody_midi):
+    xml = notation.midi_to_musicxml(melody_midi)
+    # A grand staff exports as a 2-staff part and/or a braced part-group.
+    assert (
+        "<staves>2</staves>" in xml
+        or "<staff>2</staff>" in xml
+        or "brace" in xml
+    ), "expected a two-staff grand staff in the MusicXML"
+
+
+def test_tempo_affects_note_durations(melody_midi):
+    # Same audio seconds: a faster tempo means more beats, hence more measures.
+    slow = notation.midi_to_musicxml(melody_midi, tempo=60)
+    fast = notation.midi_to_musicxml(melody_midi, tempo=240)
+    assert _count_measures(fast) > _count_measures(slow)
+
+
+def test_renotate_round_trips(melody_midi):
+    midi_b64 = base64.b64encode(notation.midi_bytes(melody_midi)).decode("ascii")
+    data = base64.b64decode(midi_b64)
+    xml, stats = notation.renotate_from_midi_bytes(data, tempo=90, time_signature="3/4")
+    assert "<score-partwise" in xml or "<?xml" in xml
+    assert stats.time_signature == "3/4"
+    assert stats.tempo_bpm == 90.0
+    assert stats.note_count == sum(len(i.notes) for i in melody_midi.instruments)
 
 
 def test_non_wav_requires_ffmpeg_or_raises():

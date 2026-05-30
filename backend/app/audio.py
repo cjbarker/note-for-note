@@ -88,11 +88,8 @@ def load_audio(data: bytes, filename: str | None = None) -> Tuple[np.ndarray, in
             pass
 
 
-def write_normalized_wav(data: bytes, filename: str | None = None) -> str:
-    """Decode ``data`` and write a mono ``TARGET_SR`` WAV to a temp file.
-
-    Returns the path to the temporary WAV. Caller is responsible for deleting it.
-    """
+def _normalize(data: bytes, filename: str | None) -> tuple[np.ndarray, int]:
+    """Decode to mono and resample to ``TARGET_SR``; raise if empty."""
     samples, sr = load_audio(data, filename)
 
     if sr != TARGET_SR:
@@ -106,11 +103,53 @@ def write_normalized_wav(data: bytes, filename: str | None = None) -> str:
 
     if samples.size == 0:
         raise AudioDecodeError("Decoded audio is empty.")
+    return samples, sr
 
+
+def _write_wav(samples: np.ndarray, sr: int) -> str:
     fd, path = tempfile.mkstemp(suffix=".wav")
     os.close(fd)
     sf.write(path, samples, sr, subtype="PCM_16")
     return path
+
+
+def write_normalized_wav(data: bytes, filename: str | None = None) -> str:
+    """Decode ``data`` and write a mono ``TARGET_SR`` WAV to a temp file.
+
+    Returns the path to the temporary WAV. Caller is responsible for deleting it.
+    """
+    samples, sr = _normalize(data, filename)
+    return _write_wav(samples, sr)
+
+
+def decode_and_wav(
+    data: bytes, filename: str | None = None
+) -> tuple[str, np.ndarray, int]:
+    """Like :func:`write_normalized_wav` but also returns the decoded samples.
+
+    Lets callers reuse the samples (e.g. for tempo estimation) without decoding
+    the input twice. Caller is responsible for deleting the returned WAV path.
+    """
+    samples, sr = _normalize(data, filename)
+    return _write_wav(samples, sr), samples, sr
+
+
+def estimate_tempo(samples: np.ndarray, sr: int) -> float:
+    """Estimate tempo (BPM) from a mono signal via librosa beat tracking.
+
+    Returns a sensible default (120) if estimation is not possible (e.g. too few
+    onsets in a short clip).
+    """
+    try:
+        import librosa
+
+        tempo, _beats = librosa.beat.beat_track(y=samples, sr=sr)
+        bpm = float(np.atleast_1d(tempo)[0])
+        if not np.isfinite(bpm) or bpm <= 0:
+            return 120.0
+        return round(bpm, 1)
+    except Exception:  # noqa: BLE001 - tempo is a best-effort hint
+        return 120.0
 
 
 def duration_seconds(samples: np.ndarray, sr: int) -> float:

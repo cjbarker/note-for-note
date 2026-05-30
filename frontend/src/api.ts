@@ -7,6 +7,12 @@ export interface TranscriptionStats {
   note_count: number;
   duration_seconds: number;
   tempo_bpm: number;
+  time_signature: string;
+}
+
+export interface RenotateResult {
+  musicXml: string;
+  stats: TranscriptionStats;
 }
 
 export interface TranscriptionResult {
@@ -41,6 +47,33 @@ export async function transcribe(
   }
 
   return (await res.json()) as TranscriptionResult;
+}
+
+// Re-render notation (tempo / time signature) from already-transcribed MIDI.
+// Fast — the backend skips the neural inference and only re-runs music21.
+export async function renotate(
+  midiBase64: string,
+  tempo: number,
+  timeSignature: string
+): Promise<RenotateResult> {
+  const res = await fetch(`${API_BASE}/api/renotate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ midiBase64, tempo, timeSignature }),
+  });
+
+  if (!res.ok) {
+    let detail = `Request failed (${res.status})`;
+    try {
+      const body = await res.json();
+      if (body?.detail) detail = body.detail;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(detail);
+  }
+
+  return (await res.json()) as RenotateResult;
 }
 
 // Decode the base64 MIDI from the API into a downloadable Blob.

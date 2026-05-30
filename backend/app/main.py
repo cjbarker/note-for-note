@@ -1,9 +1,14 @@
 """FastAPI application: piano audio -> sheet music.
 
 Pipeline per request:
-  upload (any audio format) -> audio.write_normalized_wav (ffmpeg fallback)
+  upload (any audio format) -> audio.decode_and_wav (ffmpeg fallback)
+    -> estimate tempo (librosa) unless supplied
     -> transcription.transcribe_wav (basic-pitch, polyphonic)
-    -> notation.midi_to_musicxml (music21) -> JSON {musicXml, midiBase64, stats}
+    -> notation.midi_to_musicxml (music21: grand staff, tempo, time signature)
+    -> JSON {musicXml, midiBase64, stats}
+
+A separate /api/renotate re-runs only the (fast) notation step from the returned
+MIDI, so the UI can change tempo/time-signature without re-running inference.
 """
 from __future__ import annotations
 
@@ -11,17 +16,23 @@ import base64
 import os
 import shutil
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
 
 from . import audio, notation, transcription
-from .schemas import HealthResponse, Stats, TranscribeResponse
+from .schemas import (
+    HealthResponse,
+    RenotateRequest,
+    RenotateResponse,
+    Stats,
+    TranscribeResponse,
+)
 
 # Cap uploads to keep memory/CPU bounded (basic-pitch + music21 are not free).
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB
 
-app = FastAPI(title="Note-for-Note", version="0.1.0")
+app = FastAPI(title="Note-for-Note", version="0.2.0")
 
 # Allow the Vite dev server (and a configurable extra origin) to call the API.
 _origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
@@ -52,10 +63,26 @@ def health() -> HealthResponse:
     )
 
 
-def _run_pipeline(data: bytes, filename: str | None) -> TranscribeResponse:
+def _to_stats(stats: notation.TranscriptionStats) -> Stats:
+    return Stats(
+        note_count=stats.note_count,
+        duration_seconds=stats.duration_seconds,
+        tempo_bpm=stats.tempo_bpm,
+        time_signature=stats.time_signature,
+    )
+
+
+def _run_pipeline(
+    data: bytes,
+    filename: str | None,
+    tempo: float | None,
+    time_signature: str,
+) -> TranscribeResponse:
     """Blocking transcription pipeline; run inside a threadpool."""
-    wav_path = audio.write_normalized_wav(data, filename)
+    wav_path, samples, sr = audio.decode_and_wav(data, filename)
     try:
+        if tempo is None:
+            tempo = audio.estimate_tempo(samples, sr)
         midi = transcription.transcribe_wav(wav_path)
     finally:
         try:
@@ -63,23 +90,19 @@ def _run_pipeline(data: bytes, filename: str | None) -> TranscribeResponse:
         except OSError:
             pass
 
-    music_xml = notation.midi_to_musicxml(midi)
-    stats = notation.compute_stats(midi)
+    music_xml = notation.midi_to_musicxml(midi, tempo=tempo, time_signature=time_signature)
+    stats = notation.compute_stats(midi, tempo_bpm=tempo, time_signature=time_signature)
     midi_b64 = base64.b64encode(notation.midi_bytes(midi)).decode("ascii")
 
-    return TranscribeResponse(
-        musicXml=music_xml,
-        midiBase64=midi_b64,
-        stats=Stats(
-            note_count=stats.note_count,
-            duration_seconds=stats.duration_seconds,
-            tempo_bpm=stats.tempo_bpm,
-        ),
-    )
+    return TranscribeResponse(musicXml=music_xml, midiBase64=midi_b64, stats=_to_stats(stats))
 
 
 @app.post("/api/transcribe", response_model=TranscribeResponse)
-async def transcribe(file: UploadFile = File(...)) -> TranscribeResponse:
+async def transcribe(
+    file: UploadFile = File(...),
+    tempo: float | None = Form(default=None),
+    time_signature: str = Form(default="4/4"),
+) -> TranscribeResponse:
     data = await file.read()
     if not data:
         raise HTTPException(status_code=400, detail="Empty upload.")
@@ -90,8 +113,30 @@ async def transcribe(file: UploadFile = File(...)) -> TranscribeResponse:
         )
 
     try:
-        return await run_in_threadpool(_run_pipeline, data, file.filename)
+        return await run_in_threadpool(_run_pipeline, data, file.filename, tempo, time_signature)
     except audio.AudioDecodeError as exc:
         raise HTTPException(status_code=415, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"Transcription failed: {exc}") from exc
+
+
+def _run_renotate(req: RenotateRequest) -> RenotateResponse:
+    """Fast notation-only re-render from previously transcribed MIDI."""
+    midi_data = base64.b64decode(req.midiBase64)
+    music_xml, stats = notation.renotate_from_midi_bytes(
+        midi_data,
+        tempo=req.tempo,
+        time_signature=req.timeSignature,
+        split_point=req.splitPoint,
+    )
+    return RenotateResponse(musicXml=music_xml, stats=_to_stats(stats))
+
+
+@app.post("/api/renotate", response_model=RenotateResponse)
+async def renotate(req: RenotateRequest) -> RenotateResponse:
+    if not req.midiBase64:
+        raise HTTPException(status_code=400, detail="Missing midiBase64.")
+    try:
+        return await run_in_threadpool(_run_renotate, req)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=f"Renotation failed: {exc}") from exc
