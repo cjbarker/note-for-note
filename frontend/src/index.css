@@ -107,6 +107,29 @@ header h1 {
   margin-bottom: 1rem;
 }
 
+.playback {
+  margin-bottom: 1.25rem;
+}
+
+.playback-label {
+  display: block;
+  margin-bottom: 0.4rem;
+  color: #5a6072;
+  font-size: 0.85rem;
+}
+
+.midi-player midi-player {
+  width: 100%;
+}
+
+.midi-player midi-visualizer {
+  margin-top: 0.6rem;
+  border: 1px solid #e3e6ef;
+  border-radius: 8px;
+  max-height: 200px;
+  overflow: auto;
+}
+
 .score {
   overflow-x: auto;
 }
