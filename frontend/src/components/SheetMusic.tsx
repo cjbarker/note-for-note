@@ -18,7 +18,7 @@ interface Props {
 function OriginalAudio({ blob }: { blob: Blob }) {
   const url = useMemo(() => URL.createObjectURL(blob), [blob]);
   useEffect(() => () => URL.revokeObjectURL(url), [url]);
-  return <audio className="orig-audio" controls src={url} />;
+  return <audio className="orig-audio" controls src={url} aria-label="Original recording" />;
 }
 
 export default function SheetMusic({ result, audioBlob }: Props) {
@@ -33,6 +33,7 @@ export default function SheetMusic({ result, audioBlob }: Props) {
   const [midiBase64, setMidiBase64] = useState(result.midiBase64);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [renderError, setRenderError] = useState<string | null>(null);
 
   async function runExport(fn: () => Promise<void> | void) {
     setExporting(true);
@@ -62,13 +63,16 @@ export default function SheetMusic({ result, audioBlob }: Props) {
     }
 
     let cancelled = false;
+    setRenderError(null);
     osmdRef.current
       .load(musicXml)
       .then(() => {
         if (!cancelled) osmdRef.current?.render();
       })
       .catch((err) => {
+        if (cancelled) return;
         console.error("OSMD failed to render MusicXML:", err);
+        setRenderError((err as Error).message);
       });
 
     return () => {
@@ -169,6 +173,11 @@ export default function SheetMusic({ result, audioBlob }: Props) {
         </button>
       </div>
 
+      {renderError && (
+        <p className="error" role="alert">
+          Could not render the score: {renderError}
+        </p>
+      )}
       <div className="score" ref={containerRef} />
     </div>
   );

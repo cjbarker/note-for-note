@@ -13,6 +13,7 @@ MIDI, so the UI can change tempo/time-signature without re-running inference.
 from __future__ import annotations
 
 import base64
+import logging
 import os
 import re
 import shutil
@@ -37,6 +38,8 @@ MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB
 MAX_AUDIO_SECONDS = 600  # 10 minutes
 # Accepted time-signature form, e.g. "4/4", "6/8".
 TIME_SIG_RE = re.compile(r"^\d{1,2}/\d{1,2}$")
+
+logger = logging.getLogger("note_for_note")
 
 
 @asynccontextmanager
@@ -140,6 +143,7 @@ async def transcribe(
     except audio.AudioDecodeError as exc:
         raise HTTPException(status_code=415, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
+        logger.exception("Transcription failed (filename=%r)", file.filename)
         raise HTTPException(status_code=500, detail=f"Transcription failed: {exc}") from exc
 
 
@@ -163,4 +167,5 @@ async def renotate(req: RenotateRequest) -> RenotateResponse:
     try:
         return await run_in_threadpool(_run_renotate, req)
     except Exception as exc:  # noqa: BLE001
+        logger.warning("Renotation failed: %s", exc)
         raise HTTPException(status_code=400, detail=f"Renotation failed: {exc}") from exc
