@@ -92,6 +92,18 @@ header h1 {
   color: #e0464b;
 }
 
+.error-boundary {
+  margin-top: 2rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid #f1c0c2;
+  border-radius: 10px;
+  background: #fdf2f2;
+  color: #b3393d;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
 .sheet-music {
   margin-top: 2rem;
   background: #fff;

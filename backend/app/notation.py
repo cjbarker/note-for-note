@@ -13,12 +13,15 @@ then serialized to MusicXML for the frontend to render with OpenSheetMusicDispla
 from __future__ import annotations
 
 import io
+import logging
 import tempfile
 from dataclasses import dataclass
 
 import pretty_midi
 
 from .audio import _safe_unlink
+
+logger = logging.getLogger("note_for_note")
 
 # Default split point between the two hands: middle C (MIDI 60). Notes >= this go
 # to the treble (right-hand) staff, below go to the bass (left-hand) staff.
@@ -181,6 +184,7 @@ def midi_to_musicxml(
             score.insert(0, layout.StaffGroup([treble, bass], symbol="brace", barTogether=True))
             notated = score.makeNotation(inPlace=False)
         except Exception:  # noqa: BLE001 - fall back to a single staff
+            logger.warning("grand-staff split failed; using single staff", exc_info=True)
             for part in parsed.parts:
                 _setup_part(part, time_signature, tempo)
             notated = parsed.makeNotation(inPlace=False)

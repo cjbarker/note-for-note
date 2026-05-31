@@ -53,9 +53,10 @@ export default function NotationControls({ midiBase64, stats, onRenotated }: Pro
 
   return (
     <div className="notation-controls">
-      <label>
+      <label htmlFor="nfn-tempo">
         Tempo
         <input
+          id="nfn-tempo"
           type="number"
           min={20}
           max={300}
@@ -64,9 +65,9 @@ export default function NotationControls({ midiBase64, stats, onRenotated }: Pro
         />
         <span className="unit">BPM</span>
       </label>
-      <label>
+      <label htmlFor="nfn-timesig">
         Time
-        <select value={timeSig} onChange={(e) => setTimeSig(e.target.value)}>
+        <select id="nfn-timesig" value={timeSig} onChange={(e) => setTimeSig(e.target.value)}>
           {TIME_SIGNATURES.map((ts) => (
             <option key={ts} value={ts}>
               {ts}
@@ -74,8 +75,16 @@ export default function NotationControls({ midiBase64, stats, onRenotated }: Pro
           ))}
         </select>
       </label>
-      {busy && <span className="notation-status">re-rendering…</span>}
-      {error && <span className="error">{error}</span>}
+      {busy && (
+        <span className="notation-status" role="status">
+          re-rendering…
+        </span>
+      )}
+      {error && (
+        <span className="error" role="alert">
+          {error}
+        </span>
+      )}
     </div>
   );
 }

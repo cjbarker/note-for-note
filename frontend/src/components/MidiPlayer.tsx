@@ -27,8 +27,8 @@ export default function MidiPlayer({ midiBase64 }: Props) {
   }, []);
 
   return (
-    <div className="midi-player">
-      <midi-player ref={playerRef} src={src} sound-font="" />
+    <div className="midi-player" role="group" aria-label="Transcription playback">
+      <midi-player ref={playerRef} src={src} sound-font="" aria-label="Play transcription" />
       <midi-visualizer id={VISUALIZER_ID} type="piano-roll" src={src} />
     </div>
   );

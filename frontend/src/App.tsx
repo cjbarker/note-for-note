@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState } from "react";
 import AudioInput from "./components/AudioInput";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { transcribe, type TranscriptionResult } from "./api";
 
 // Lazy-loaded so OpenSheetMusicDisplay (the bulk of the bundle) isn't shipped on
@@ -48,9 +49,11 @@ export default function App() {
       {error && <p className="error">{error}</p>}
 
       {result && (
-        <Suspense fallback={<p className="status">Loading score…</p>}>
-          <SheetMusic result={result} audioBlob={audioBlob} />
-        </Suspense>
+        <ErrorBoundary label="the score">
+          <Suspense fallback={<p className="status">Loading score…</p>}>
+            <SheetMusic result={result} audioBlob={audioBlob} />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       <footer>
