@@ -123,7 +123,9 @@ def _split_to_grand_staff(score, split_point: int):
             target = treble if el.pitch.midi >= split_point else bass
             target.insert(offset, el)
 
-    _music21.layout.StaffGroup  # type: ignore[attr-defined]  # noqa: B018 — trigger lazy import
+    # Accessing _music21.layout triggers the lazy import (via __getattr__) so
+    # we don't have to import music21 at module load time.
+    _music21.layout  # type: ignore[attr-defined]
     return treble, bass
 
 
