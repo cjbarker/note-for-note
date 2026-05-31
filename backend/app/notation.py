@@ -13,11 +13,12 @@ then serialized to MusicXML for the frontend to render with OpenSheetMusicDispla
 from __future__ import annotations
 
 import io
-import os
 import tempfile
 from dataclasses import dataclass
 
 import pretty_midi
+
+from .audio import _safe_unlink
 
 # Default split point between the two hands: middle C (MIDI 60). Notes >= this go
 # to the treble (right-hand) staff, below go to the bass (left-hand) staff.
@@ -130,6 +131,16 @@ def _insert_pitches(part, offset, duration, pitches):
     part.insert(offset, el)
 
 
+def _setup_part(part, time_signature: str, tempo: float | None) -> None:
+    """Insert the piano instrument, time signature, and (optional) tempo mark."""
+    from music21 import instrument, meter, tempo as m21tempo
+
+    part.insert(0, instrument.Piano())
+    part.insert(0, meter.TimeSignature(time_signature))
+    if tempo and tempo > 0:
+        part.insert(0, m21tempo.MetronomeMark(number=tempo))
+
+
 def midi_to_musicxml(
     midi: pretty_midi.PrettyMIDI,
     tempo: float | None = None,
@@ -142,7 +153,7 @@ def midi_to_musicxml(
     barring; ``split_point`` (MIDI number) divides treble/bass. If the grand-staff
     split fails for any reason, falls back to a readable single-staff score.
     """
-    from music21 import converter, instrument, meter, stream, tempo as m21tempo
+    from music21 import converter, stream
 
     if tempo and tempo > 0:
         midi = _retempo_midi(midi, tempo)
@@ -157,16 +168,10 @@ def midi_to_musicxml(
         # MusicXML for the free-timed output basic-pitch produces.
         parsed = converter.parse(tmp_path, quantizePost=True, quarterLengthDivisors=(4,))
 
-        ts = meter.TimeSignature(time_signature)
-        mm = m21tempo.MetronomeMark(number=tempo) if tempo and tempo > 0 else None
-
         try:
             treble, bass, layout = _split_to_grand_staff(parsed, split_point)
             for part in (treble, bass):
-                part.insert(0, instrument.Piano())
-                part.insert(0, meter.TimeSignature(time_signature))
-                if mm is not None:
-                    part.insert(0, m21tempo.MetronomeMark(number=tempo))
+                _setup_part(part, time_signature, tempo)
             score = stream.Score()
             score.insert(0, treble)
             score.insert(0, bass)
@@ -174,25 +179,16 @@ def midi_to_musicxml(
             notated = score.makeNotation(inPlace=False)
         except Exception:  # noqa: BLE001 - fall back to a single staff
             for part in parsed.parts:
-                part.insert(0, instrument.Piano())
-                part.insert(0, ts)
-                if mm is not None:
-                    part.insert(0, m21tempo.MetronomeMark(number=tempo))
+                _setup_part(part, time_signature, tempo)
             notated = parsed.makeNotation(inPlace=False)
 
         out = notated.write("musicxml")
     finally:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
+        _safe_unlink(tmp_path)
 
     with open(out, "r", encoding="utf-8") as fh:
         xml = fh.read()
-    try:
-        os.unlink(out)
-    except OSError:
-        pass
+    _safe_unlink(out)
     return xml
 
 

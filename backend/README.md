@@ -23,9 +23,11 @@ app/schemas.py        Pydantic response models
 | POST   | `/api/renotate`   | JSON `{midiBase64, tempo, timeSignature, splitPoint?}` → `{musicXml, stats}` (fast; re-runs only music21, not the model) |
 
 `stats` = `{note_count, duration_seconds, tempo_bpm, time_signature}`. Uploads are
-capped at 25 MB and transcription runs in a threadpool so the event loop stays
-responsive. Notation renders a treble+bass **grand staff** (split at middle C);
-tempo (auto-estimated via librosa, user-overridable) drives note durations.
+capped at 25 MB and 10 minutes of audio; `tempo` must be positive and
+`time_signature` must match `N/N` (else HTTP 400/413). Transcription runs in a
+threadpool so the event loop stays responsive. Notation renders a treble+bass
+**grand staff** (split at middle C); tempo (auto-estimated via librosa,
+user-overridable) drives note durations.
 
 ## Run
 

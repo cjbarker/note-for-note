@@ -30,6 +30,18 @@ class AudioDecodeError(RuntimeError):
     """Raised when the input audio cannot be decoded."""
 
 
+class InputError(ValueError):
+    """Raised when decoded audio violates an input constraint (e.g. too long)."""
+
+
+def _safe_unlink(path: str) -> None:
+    """Best-effort delete of a temp file; ignore if already gone."""
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
+
+
 def _to_mono(samples: np.ndarray) -> np.ndarray:
     """Downmix an (n,) or (n, channels) array to mono float32."""
     samples = np.asarray(samples, dtype=np.float32)
@@ -82,10 +94,7 @@ def load_audio(data: bytes, filename: str | None = None) -> Tuple[np.ndarray, in
             f"on the server. Underlying error: {exc}"
         ) from exc
     finally:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
+        _safe_unlink(tmp_path)
 
 
 def _normalize(data: bytes, filename: str | None) -> tuple[np.ndarray, int]:

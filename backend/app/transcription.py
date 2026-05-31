@@ -7,6 +7,7 @@ the detection thresholds as tunable parameters.
 """
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 
 import pretty_midi
@@ -29,17 +30,21 @@ class TranscriptionParams:
 
 
 # basic-pitch's model is loaded lazily and cached, so the (slow) first import /
-# model load happens once rather than on every request.
+# model load happens once rather than on every request. The lock makes the
+# double-checked init safe when concurrent requests race on the first load.
 _MODEL = None
+_MODEL_LOCK = threading.Lock()
 
 
 def _get_model():
     global _MODEL
     if _MODEL is None:
-        from basic_pitch import ICASSP_2022_MODEL_PATH
-        from basic_pitch.inference import Model
+        with _MODEL_LOCK:
+            if _MODEL is None:
+                from basic_pitch import ICASSP_2022_MODEL_PATH
+                from basic_pitch.inference import Model
 
-        _MODEL = Model(ICASSP_2022_MODEL_PATH)
+                _MODEL = Model(ICASSP_2022_MODEL_PATH)
     return _MODEL
 
 

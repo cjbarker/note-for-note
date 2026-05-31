@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import base64
 import os
+import re
 import shutil
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,8 +33,21 @@ from .schemas import (
 
 # Cap uploads to keep memory/CPU bounded (basic-pitch + music21 are not free).
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB
+# Cap audio duration so a single long clip can't monopolize a threadpool worker.
+MAX_AUDIO_SECONDS = 600  # 10 minutes
+# Accepted time-signature form, e.g. "4/4", "6/8".
+TIME_SIG_RE = re.compile(r"^\d{1,2}/\d{1,2}$")
 
-app = FastAPI(title="Note-for-Note", version="0.2.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Warm the model so the first real request isn't slow. Failure is tolerated;
+    # /api/health will report model_loaded=false.
+    transcription.warm_up()
+    yield
+
+
+app = FastAPI(title="Note-for-Note", version="0.3.0", lifespan=lifespan)
 
 # Allow the Vite dev server (and a configurable extra origin) to call the API.
 _origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
@@ -42,16 +57,17 @@ if os.environ.get("FRONTEND_ORIGIN"):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type"],
 )
 
 
-@app.on_event("startup")
-def _startup() -> None:
-    # Warm the model so the first real request isn't slow. Failure is tolerated;
-    # /api/health will report model_loaded=false.
-    transcription.warm_up()
+def _validate_time_signature(time_signature: str) -> None:
+    if not TIME_SIG_RE.match(time_signature):
+        raise HTTPException(
+            status_code=400,
+            detail=f'Invalid time signature "{time_signature}"; expected e.g. "4/4".',
+        )
 
 
 @app.get("/api/health", response_model=HealthResponse)
@@ -81,14 +97,16 @@ def _run_pipeline(
     """Blocking transcription pipeline; run inside a threadpool."""
     wav_path, samples, sr = audio.decode_and_wav(data, filename)
     try:
+        duration = audio.duration_seconds(samples, sr)
+        if duration > MAX_AUDIO_SECONDS:
+            raise audio.InputError(
+                f"Audio too long ({duration:.0f}s; max {MAX_AUDIO_SECONDS}s)."
+            )
         if tempo is None:
             tempo = audio.estimate_tempo(samples, sr)
         midi = transcription.transcribe_wav(wav_path)
     finally:
-        try:
-            os.unlink(wav_path)
-        except OSError:
-            pass
+        audio._safe_unlink(wav_path)
 
     music_xml = notation.midi_to_musicxml(midi, tempo=tempo, time_signature=time_signature)
     stats = notation.compute_stats(midi, tempo_bpm=tempo, time_signature=time_signature)
@@ -111,9 +129,14 @@ async def transcribe(
             status_code=413,
             detail=f"Audio too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB).",
         )
+    if tempo is not None and tempo <= 0:
+        raise HTTPException(status_code=400, detail="Tempo must be a positive BPM.")
+    _validate_time_signature(time_signature)
 
     try:
         return await run_in_threadpool(_run_pipeline, data, file.filename, tempo, time_signature)
+    except audio.InputError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
     except audio.AudioDecodeError as exc:
         raise HTTPException(status_code=415, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
