@@ -142,7 +142,7 @@ async def transcribe(
         raise HTTPException(status_code=415, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         logger.exception("Transcription failed (filename=%r)", file.filename)
-        raise HTTPException(status_code=500, detail=f"Transcription failed: {exc}") from exc
+        raise HTTPException(status_code=500, detail="Transcription failed. Please try again or contact support.") from exc
 
 
 def _run_renotate(req: RenotateRequest) -> RenotateResponse:
@@ -165,5 +165,5 @@ async def renotate(req: RenotateRequest) -> RenotateResponse:
     try:
         return await run_in_threadpool(_run_renotate, req)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Renotation failed: %s", exc)
-        raise HTTPException(status_code=400, detail=f"Renotation failed: {exc}") from exc
+        logger.exception("Renotation failed")
+        raise HTTPException(status_code=400, detail="Renotation failed. Please try again.") from exc
