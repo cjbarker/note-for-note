@@ -78,10 +78,11 @@ def _decode_librosa(data: bytes, ext: str) -> tuple[np.ndarray, int]:
         ) from exc
 
     # librosa needs a file path for the audioread/ffmpeg backend, so spill to a temp file.
-    with tempfile.NamedTemporaryFile(suffix=ext or ".bin", delete=False) as tmp:
-        tmp.write(data)
-        tmp_path = tmp.name
+    tmp_path: str | None = None
     try:
+        with tempfile.NamedTemporaryFile(suffix=ext or ".bin", delete=False) as tmp:
+            tmp.write(data)
+            tmp_path = tmp.name
         samples, sr = librosa.load(tmp_path, sr=None, mono=True)
         return np.asarray(samples, dtype=np.float32), int(sr)
     except Exception as exc:  # noqa: BLE001
@@ -90,7 +91,8 @@ def _decode_librosa(data: bytes, ext: str) -> tuple[np.ndarray, int]:
             f"on the server. Underlying error: {exc}"
         ) from exc
     finally:
-        _safe_unlink(tmp_path)
+        if tmp_path:
+            _safe_unlink(tmp_path)
 
 
 def load_audio(data: bytes, filename: str | None = None) -> tuple[np.ndarray, int]:
