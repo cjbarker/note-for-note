@@ -126,4 +126,4 @@ backend (ruff + pytest) and frontend (lint + format + build + test) — on every
   `backend/app/transcription.py` (`TranscriptionParams`).
 
 ## License
-[MIT](./LICENSE) © CJ Barker
+[Apache 2.0](./LICENSE) © CJ Barker
