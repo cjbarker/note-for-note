@@ -81,7 +81,8 @@ function encodeWav(samples: Float32Array, sampleRate: number): Blob {
 
 // Decode arbitrary audio bytes (mp3/m4a/webm/wav/...) into an AudioBuffer.
 async function decode(bytes: ArrayBuffer): Promise<AudioBuffer> {
-  const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  const Ctor = window.AudioContext ?? window.webkitAudioContext;
+  const ctx = new Ctor();
   try {
     // decodeAudioData detaches the buffer in some browsers, so pass a copy.
     return await ctx.decodeAudioData(bytes.slice(0));
