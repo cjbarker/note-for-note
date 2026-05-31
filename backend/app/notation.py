@@ -10,6 +10,7 @@ a mature MIDI->notation engine). The notes are:
   4. given a time signature and metronome mark,
 then serialized to MusicXML for the frontend to render with OpenSheetMusicDisplay.
 """
+
 from __future__ import annotations
 
 import io
@@ -19,6 +20,7 @@ from dataclasses import dataclass
 
 import pretty_midi
 
+from . import _music21
 from .audio import _safe_unlink
 
 logger = logging.getLogger("note_for_note")
@@ -52,10 +54,14 @@ def compute_stats(
     note_count = sum(len(inst.notes) for inst in midi.instruments)
     duration = midi.get_end_time()
     if tempo_bpm is None:
-        try:
-            tempo_bpm = midi.estimate_tempo() if note_count > 1 else 120.0
-        except Exception:  # noqa: BLE001 - estimate_tempo needs >=2 onsets
+        if note_count < 2:
             tempo_bpm = 120.0
+        else:
+            try:
+                tempo_bpm = midi.estimate_tempo()
+            except ValueError:
+                # estimate_tempo needs >=2 onsets; fall back to 120.
+                tempo_bpm = 120.0
     return TranscriptionStats(
         note_count=note_count,
         duration_seconds=round(float(duration), 3),
@@ -64,9 +70,7 @@ def compute_stats(
     )
 
 
-def _retempo_midi(
-    midi: pretty_midi.PrettyMIDI, tempo_bpm: float
-) -> pretty_midi.PrettyMIDI:
+def _retempo_midi(midi: pretty_midi.PrettyMIDI, tempo_bpm: float) -> pretty_midi.PrettyMIDI:
     """Return a copy of ``midi`` whose tempo metadata is ``tempo_bpm``.
 
     Note times are stored in seconds (tempo-independent); rewriting the tempo so
@@ -76,14 +80,14 @@ def _retempo_midi(
     out = pretty_midi.PrettyMIDI(initial_tempo=float(tempo_bpm))
     for inst in midi.instruments:
         new_inst = pretty_midi.Instrument(
-            program=inst.program, is_drum=inst.is_drum, name=inst.name
+            program=inst.program,
+            is_drum=inst.is_drum,
+            name=inst.name,
         )
-        for n in inst.notes:
-            new_inst.notes.append(
-                pretty_midi.Note(
-                    velocity=n.velocity, pitch=n.pitch, start=n.start, end=n.end
-                )
-            )
+        new_inst.notes = [
+            pretty_midi.Note(velocity=n.velocity, pitch=n.pitch, start=n.start, end=n.end)
+            for n in inst.notes
+        ]
         out.instruments.append(new_inst)
     return out
 
@@ -91,11 +95,12 @@ def _retempo_midi(
 def _split_to_grand_staff(score, split_point: int):
     """Split a parsed single-part ``score`` into a treble+bass grand staff.
 
-    Returns a new music21 Score containing two PartStaff objects joined by a
+    Returns a new music21 Score with two PartStaff objects joined by a
     brace StaffGroup. Raises on unexpected structure so the caller can fall back.
     """
-    from music21 import clef, layout, stream
-    from music21 import note as m21note
+    m21note = _music21.note  # type: ignore[attr-defined]
+    clef = _music21.clef  # type: ignore[attr-defined]
+    stream = _music21.stream  # type: ignore[attr-defined]
 
     flat = score.flatten()
 
@@ -118,33 +123,35 @@ def _split_to_grand_staff(score, split_point: int):
             target = treble if el.pitch.midi >= split_point else bass
             target.insert(offset, el)
 
-    return treble, bass, layout
+    _music21.layout.StaffGroup  # type: ignore[attr-defined]  # noqa: B018 — trigger lazy import
+    return treble, bass
 
 
 def _insert_pitches(part, offset, duration, pitches):
     """Insert ``pitches`` at ``offset`` as a Note or Chord (no-op if empty)."""
-    from music21 import chord as m21chord
-    from music21 import note as m21note
+    m21chord = _music21.chord  # type: ignore[attr-defined]
+    m21note = _music21.note  # type: ignore[attr-defined]
 
     if not pitches:
         return
     if len(pitches) == 1:
-        el = m21note.Note(pitches[0])
+        el = m21note.Note(pitches[0])  # type: ignore[attr-defined]
     else:
-        el = m21chord.Chord(pitches)
+        el = m21chord.Chord(pitches)  # type: ignore[attr-defined]
     el.duration.quarterLength = duration.quarterLength
     part.insert(offset, el)
 
 
 def _setup_part(part, time_signature: str, tempo: float | None) -> None:
     """Insert the piano instrument, time signature, and (optional) tempo mark."""
-    from music21 import instrument, meter
-    from music21 import tempo as m21tempo
+    instrument = _music21.instrument  # type: ignore[attr-defined]
+    meter = _music21.meter  # type: ignore[attr-defined]
+    m21tempo = _music21.tempo  # type: ignore[attr-defined]
 
-    part.insert(0, instrument.Piano())
-    part.insert(0, meter.TimeSignature(time_signature))
+    part.insert(0, instrument.Piano())  # type: ignore[attr-defined]
+    part.insert(0, meter.TimeSignature(time_signature))  # type: ignore[attr-defined]
     if tempo and tempo > 0:
-        part.insert(0, m21tempo.MetronomeMark(number=tempo))
+        part.insert(0, m21tempo.MetronomeMark(number=tempo))  # type: ignore[attr-defined]
 
 
 def midi_to_musicxml(
@@ -159,7 +166,8 @@ def midi_to_musicxml(
     barring; ``split_point`` (MIDI number) divides treble/bass. If the grand-staff
     split fails for any reason, falls back to a readable single-staff score.
     """
-    from music21 import converter, stream
+    converter = _music21.converter  # type: ignore[attr-defined]
+    stream = _music21.stream  # type: ignore[attr-defined]
 
     if tempo and tempo > 0:
         midi = _retempo_midi(midi, tempo)
@@ -172,16 +180,21 @@ def midi_to_musicxml(
         # Quantize at MIDI-import time to a 16th-note grid. Using only the (4,)
         # divisor (no triplets) guarantees every duration is expressible in
         # MusicXML for the free-timed output basic-pitch produces.
-        parsed = converter.parse(tmp_path, quantizePost=True, quarterLengthDivisors=(4,))
+        parsed = converter.parse(tmp_path, quantizePost=True, quarterLengthDivisors=(4,))  # type: ignore[attr-defined]
 
         try:
-            treble, bass, layout = _split_to_grand_staff(parsed, split_point)
+            treble, bass = _split_to_grand_staff(parsed, split_point)
             for part in (treble, bass):
                 _setup_part(part, time_signature, tempo)
-            score = stream.Score()
+            score = stream.Score()  # type: ignore[attr-defined]
             score.insert(0, treble)
             score.insert(0, bass)
-            score.insert(0, layout.StaffGroup([treble, bass], symbol="brace", barTogether=True))
+            score.insert(
+                0,
+                _music21.layout.StaffGroup(  # type: ignore[attr-defined]
+                    [treble, bass], symbol="brace", barTogether=True
+                ),
+            )
             notated = score.makeNotation(inPlace=False)
         except Exception:  # noqa: BLE001 - fall back to a single staff
             logger.warning("grand-staff split failed; using single staff", exc_info=True)

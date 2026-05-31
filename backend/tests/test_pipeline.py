@@ -5,6 +5,7 @@ decode -> transcribe -> notation pipeline, and assert the output is sensible.
 The transcribed MIDI comes from the shared session-scoped ``melody_midi`` fixture
 (see conftest.py) so the slow model load + inference happens once.
 """
+
 from __future__ import annotations
 
 import base64
@@ -63,11 +64,9 @@ def test_full_pipeline_detects_notes(melody_midi):
 def test_grand_staff_in_musicxml(melody_midi):
     xml = notation.midi_to_musicxml(melody_midi)
     # A grand staff exports as a 2-staff part and/or a braced part-group.
-    assert (
-        "<staves>2</staves>" in xml
-        or "<staff>2</staff>" in xml
-        or "brace" in xml
-    ), "expected a two-staff grand staff in the MusicXML"
+    assert "<staves>2</staves>" in xml or "<staff>2</staff>" in xml or "brace" in xml, (
+        "expected a two-staff grand staff in the MusicXML"
+    )
 
 
 def test_tempo_affects_note_durations(melody_midi):
@@ -80,9 +79,7 @@ def test_tempo_affects_note_durations(melody_midi):
 def test_renotate_round_trips(melody_midi):
     midi_b64 = base64.b64encode(notation.midi_bytes(melody_midi)).decode("ascii")
     data = base64.b64decode(midi_b64)
-    xml, stats, out_midi = notation.renotate_from_midi_bytes(
-        data, tempo=90, time_signature="3/4"
-    )
+    xml, stats, out_midi = notation.renotate_from_midi_bytes(data, tempo=90, time_signature="3/4")
     assert "<score-partwise" in xml or "<?xml" in xml
     assert stats.time_signature == "3/4"
     assert stats.tempo_bpm == 90.0

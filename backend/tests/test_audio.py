@@ -1,4 +1,5 @@
 """Unit tests for the audio + notation helpers that don't need the model."""
+
 from __future__ import annotations
 
 import io

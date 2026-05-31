@@ -4,6 +4,7 @@ These exercise the endpoints end-to-end (routing, validation, serialization).
 The module-scoped client runs the app lifespan once (warming the model, which is
 then shared with the session-scoped ``melody_midi`` fixture).
 """
+
 from __future__ import annotations
 
 import base64

@@ -9,6 +9,7 @@ Everything is normalized to mono float32 at a target sample rate (22050 Hz,
 which is what basic-pitch expects) and written to a temporary WAV that the
 transcription step can hand directly to basic-pitch.
 """
+
 from __future__ import annotations
 
 import io
@@ -49,30 +50,26 @@ def _to_mono(samples: np.ndarray) -> np.ndarray:
     return samples
 
 
-def load_audio(data: bytes, filename: str | None = None) -> tuple[np.ndarray, int]:
-    """Decode raw audio ``bytes`` to (mono float32 samples, sample_rate).
+def _decode_wav(data: bytes) -> tuple[np.ndarray, int]:
+    """Decode WAV audio via soundfile (dependency-free fast path)."""
+    try:
+        samples, sr = sf.read(io.BytesIO(data), dtype="float32", always_2d=False)
+        return _to_mono(samples), int(sr)
+    except Exception as exc:  # noqa: BLE001 - surface a clean error
+        raise AudioDecodeError(f"Failed to read WAV: {exc}") from exc
 
-    Tries the dependency-free WAV path first, then falls back to librosa/ffmpeg
-    for compressed formats. Raises :class:`AudioDecodeError` on failure.
-    """
-    ext = os.path.splitext(filename or "")[1].lower()
 
-    # Fast path: WAV via soundfile (no ffmpeg required).
-    if ext in WAV_EXTENSIONS:
-        try:
-            samples, sr = sf.read(io.BytesIO(data), dtype="float32", always_2d=False)
-            return _to_mono(samples), int(sr)
-        except Exception as exc:  # noqa: BLE001 - surface a clean error
-            raise AudioDecodeError(f"Failed to read WAV: {exc}") from exc
-
-    # soundfile can also handle FLAC/OGG without ffmpeg; try it opportunistically.
+def _decode_soundfile(data: bytes) -> tuple[np.ndarray, int]:
+    """Decode FLAC/OGG via soundfile (works without ffmpeg for these formats)."""
     try:
         samples, sr = sf.read(io.BytesIO(data), dtype="float32", always_2d=False)
         return _to_mono(samples), int(sr)
     except Exception:
-        pass
+        return None  # type: ignore[return-value]
 
-    # Fallback: librosa -> audioread -> ffmpeg for everything else (mp3, m4a, webm...).
+
+def _decode_librosa(data: bytes, ext: str) -> tuple[np.ndarray, int]:
+    """Decode compressed audio via librosa -> audioread -> ffmpeg."""
     try:
         import librosa  # imported lazily; heavy import
     except Exception as exc:  # noqa: BLE001
@@ -94,6 +91,26 @@ def load_audio(data: bytes, filename: str | None = None) -> tuple[np.ndarray, in
         ) from exc
     finally:
         _safe_unlink(tmp_path)
+
+
+def load_audio(data: bytes, filename: str | None = None) -> tuple[np.ndarray, int]:
+    """Decode raw audio ``bytes`` to (mono float32 samples, sample_rate).
+
+    Tries the dependency-free WAV path first, then falls back to librosa/ffmpeg
+    for compressed formats. Raises :class:`AudioDecodeError` on failure.
+    """
+    ext = os.path.splitext(filename or "")[1].lower()
+
+    # Fast path: WAV via soundfile (no ffmpeg required).
+    if ext in WAV_EXTENSIONS:
+        return _decode_wav(data)
+
+    # soundfile can also handle FLAC/OGG without ffmpeg; try it opportunistically.
+    if (result := _decode_soundfile(data)) is not None:
+        return result
+
+    # Fallback: librosa -> audioread -> ffmpeg for everything else (mp3, m4a, webm...).
+    return _decode_librosa(data, ext)
 
 
 def _normalize(data: bytes, filename: str | None) -> tuple[np.ndarray, int]:
@@ -130,9 +147,7 @@ def write_normalized_wav(data: bytes, filename: str | None = None) -> str:
     return _write_wav(samples, sr)
 
 
-def decode_and_wav(
-    data: bytes, filename: str | None = None
-) -> tuple[str, np.ndarray, int]:
+def decode_and_wav(data: bytes, filename: str | None = None) -> tuple[str, np.ndarray, int]:
     """Like :func:`write_normalized_wav` but also returns the decoded samples.
 
     Lets callers reuse the samples (e.g. for tempo estimation) without decoding

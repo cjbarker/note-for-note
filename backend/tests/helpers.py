@@ -1,4 +1,5 @@
 """Shared synthesis helpers for tests (pure functions, no model needed)."""
+
 from __future__ import annotations
 
 import io

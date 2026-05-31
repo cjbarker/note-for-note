@@ -1,6 +1,6 @@
 // API client for the transcription backend.
 
-const API_BASE: string =
+const API_BASE =
   (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
 
 export interface TranscriptionStats {
@@ -10,13 +10,7 @@ export interface TranscriptionStats {
   time_signature: string;
 }
 
-export interface RenotateResult {
-  musicXml: string;
-  midiBase64: string;
-  stats: TranscriptionStats;
-}
-
-export interface TranscriptionResult {
+export interface TranscriptionOutput {
   musicXml: string;
   midiBase64: string;
   stats: TranscriptionStats;
@@ -39,7 +33,7 @@ export async function extractFetchError(res: Response): Promise<Error> {
 export async function transcribe(
   audio: Blob,
   filename = "recording.wav"
-): Promise<TranscriptionResult> {
+): Promise<TranscriptionOutput> {
   const form = new FormData();
   form.append("file", audio, filename);
 
@@ -50,7 +44,7 @@ export async function transcribe(
 
   if (!res.ok) throw await extractFetchError(res);
 
-  return (await res.json()) as TranscriptionResult;
+  return (await res.json()) as TranscriptionOutput;
 }
 
 // Re-render notation (tempo / time signature) from already-transcribed MIDI.
@@ -59,7 +53,7 @@ export async function renotate(
   midiBase64: string,
   tempo: number,
   timeSignature: string
-): Promise<RenotateResult> {
+): Promise<TranscriptionOutput> {
   const res = await fetch(`${API_BASE}/api/renotate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -68,7 +62,7 @@ export async function renotate(
 
   if (!res.ok) throw await extractFetchError(res);
 
-  return (await res.json()) as RenotateResult;
+  return (await res.json()) as TranscriptionOutput;
 }
 
 // Decode the base64 MIDI from the API into a downloadable Blob.

@@ -5,6 +5,7 @@ detecting multiple simultaneous notes (chords) — essential for piano. We wrap
 its ``predict`` API, constrain the pitch range to a piano keyboard, and expose
 the detection thresholds as tunable parameters.
 """
+
 from __future__ import annotations
 
 import threading

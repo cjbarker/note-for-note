@@ -1,14 +1,14 @@
 import { lazy, Suspense, useState } from "react";
 import AudioInput from "./components/AudioInput";
 import ErrorBoundary from "./components/ErrorBoundary";
-import { transcribe, type TranscriptionResult } from "./api";
+import { transcribe, type TranscriptionOutput } from "./api";
 
 // Lazy-loaded so OpenSheetMusicDisplay (the bulk of the bundle) isn't shipped on
 // the landing page — it loads only once the first transcription returns.
 const SheetMusic = lazy(() => import("./components/SheetMusic"));
 
 export default function App() {
-  const [result, setResult] = useState<TranscriptionResult | null>(null);
+  const [result, setResult] = useState<TranscriptionOutput | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

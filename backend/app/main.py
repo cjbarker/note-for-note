@@ -10,6 +10,7 @@ Pipeline per request:
 A separate /api/renotate re-runs only the (fast) notation step from the returned
 MIDI, so the UI can change tempo/time-signature without re-running inference.
 """
+
 from __future__ import annotations
 
 import base64
@@ -25,6 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import audio, notation, transcription
 from .schemas import (
+    TIME_SIG_PATTERN,
     HealthResponse,
     RenotateRequest,
     RenotateResponse,
@@ -36,8 +38,6 @@ from .schemas import (
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB
 # Cap audio duration so a single long clip can't monopolize a threadpool worker.
 MAX_AUDIO_SECONDS = 600  # 10 minutes
-# Accepted time-signature form, e.g. "4/4", "6/8".
-TIME_SIG_RE = re.compile(r"^\d{1,2}/\d{1,2}$")
 
 logger = logging.getLogger("note_for_note")
 
@@ -66,7 +66,7 @@ app.add_middleware(
 
 
 def _validate_time_signature(time_signature: str) -> None:
-    if not TIME_SIG_RE.match(time_signature):
+    if not re.fullmatch(TIME_SIG_PATTERN, time_signature):
         raise HTTPException(
             status_code=400,
             detail=f'Invalid time signature "{time_signature}"; expected e.g. "4/4".',
@@ -102,9 +102,7 @@ def _run_pipeline(
     try:
         duration = audio.duration_seconds(samples, sr)
         if duration > MAX_AUDIO_SECONDS:
-            raise audio.InputError(
-                f"Audio too long ({duration:.0f}s; max {MAX_AUDIO_SECONDS}s)."
-            )
+            raise audio.InputError(f"Audio too long ({duration:.0f}s; max {MAX_AUDIO_SECONDS}s).")
         if tempo is None:
             tempo = audio.estimate_tempo(samples, sr)
         midi = transcription.transcribe_wav(wav_path)

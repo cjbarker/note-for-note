@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
-import { midiBlobFromBase64, type TranscriptionResult, type TranscriptionStats } from "../api";
+import { midiBlobFromBase64, type TranscriptionOutput, type TranscriptionStats } from "../api";
 import NotationControls from "./NotationControls";
 import { exportPdf, exportPng, exportSvg } from "../export";
 import { downloadBlob } from "../lib/download";
@@ -10,7 +10,7 @@ import { downloadBlob } from "../lib/download";
 const MidiPlayer = lazy(() => import("./MidiPlayer"));
 
 interface Props {
-  result: TranscriptionResult;
+  result: TranscriptionOutput;
   audioBlob: Blob | null;
 }
 
