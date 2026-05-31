@@ -2,8 +2,8 @@
 
 We synthesize known-pitch sine tones in-memory, run them through the full
 decode -> transcribe -> notation pipeline, and assert the output is sensible.
-The basic-pitch model load + inference is slow, so the transcribed MIDI is
-produced once via a session-scoped fixture and reused across notation tests.
+The transcribed MIDI comes from the shared session-scoped ``melody_midi`` fixture
+(see conftest.py) so the slow model load + inference happens once.
 """
 from __future__ import annotations
 
@@ -14,37 +14,8 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from app import audio, notation, transcription
-
-SR = 22050
-
-
-def _sine(freq: float, seconds: float, sr: int = SR, amp: float = 0.5) -> np.ndarray:
-    t = np.linspace(0, seconds, int(sr * seconds), endpoint=False)
-    return (amp * np.sin(2 * np.pi * freq * t)).astype(np.float32)
-
-
-def _wav_bytes(samples: np.ndarray, sr: int = SR) -> bytes:
-    buf = io.BytesIO()
-    sf.write(buf, samples, sr, format="WAV", subtype="PCM_16")
-    return buf.getvalue()
-
-
-def _melody_wav() -> bytes:
-    # C4, E4, G4, C5 — a clear, well-separated arpeggio basic-pitch can latch onto.
-    freqs = [261.63, 329.63, 392.00, 523.25]
-    parts = []
-    for f in freqs:
-        parts.append(_sine(f, 0.6))
-        parts.append(np.zeros(int(SR * 0.1), dtype=np.float32))  # gap between notes
-    return _wav_bytes(np.concatenate(parts))
-
-
-@pytest.fixture(scope="session")
-def melody_midi():
-    """Transcribe the arpeggio once; reused across notation tests (slow step)."""
-    path = audio.write_normalized_wav(_melody_wav(), "melody.wav")
-    return transcription.transcribe_wav(path)
+from app import audio, notation
+from tests.helpers import SR, sine as _sine, wav_bytes as _wav_bytes
 
 
 def _count_measures(xml: str) -> int:

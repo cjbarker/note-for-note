@@ -2,15 +2,7 @@
 // OSMD renders on screen (WYSIWYG). The jsPDF + svg2pdf.js libraries are imported
 // dynamically so they only load on first export, keeping the initial bundle light.
 import { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
+import { downloadBlob } from "./lib/download";
 
 // Render MusicXML into a hidden, off-screen OSMD instance and return its
 // container so the caller can pull out the produced <svg>/<canvas> nodes.

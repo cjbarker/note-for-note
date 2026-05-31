@@ -7,6 +7,7 @@ import {
 } from "../api";
 import NotationControls from "./NotationControls";
 import { exportPdf, exportPng, exportSvg } from "../export";
+import { downloadBlob } from "../lib/download";
 
 // Lazy-loaded: html-midi-player pulls in Tone.js + @magenta/music (~2 MB), which
 // we only need once a transcription exists. Splitting it keeps initial load light.
@@ -15,15 +16,6 @@ const MidiPlayer = lazy(() => import("./MidiPlayer"));
 interface Props {
   result: TranscriptionResult;
   audioBlob: Blob | null;
-}
-
-function download(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 // Plays back the user's original recording, for A/B comparison with the MIDI.
@@ -165,14 +157,14 @@ export default function SheetMusic({ result, audioBlob }: Props) {
         <button
           className="button small"
           onClick={() =>
-            download(new Blob([musicXml], { type: "application/xml" }), "transcription.musicxml")
+            downloadBlob(new Blob([musicXml], { type: "application/xml" }), "transcription.musicxml")
           }
         >
           Download MusicXML
         </button>
         <button
           className="button small"
-          onClick={() => download(midiBlobFromBase64(midiBase64), "transcription.mid")}
+          onClick={() => downloadBlob(midiBlobFromBase64(midiBase64), "transcription.mid")}
         >
           Download MIDI
         </button>

@@ -22,6 +22,18 @@ export interface TranscriptionResult {
   stats: TranscriptionStats;
 }
 
+// Turn a non-OK response into an Error, preferring the backend's `detail` message.
+export async function extractFetchError(res: Response): Promise<Error> {
+  let detail = `Request failed (${res.status})`;
+  try {
+    const body = await res.json();
+    if (body?.detail) detail = body.detail;
+  } catch {
+    /* non-JSON error body */
+  }
+  return new Error(detail);
+}
+
 // POST an audio blob (WAV fast path, or any format the server can decode) and
 // return the transcription result.
 export async function transcribe(
@@ -36,16 +48,7 @@ export async function transcribe(
     body: form,
   });
 
-  if (!res.ok) {
-    let detail = `Request failed (${res.status})`;
-    try {
-      const body = await res.json();
-      if (body?.detail) detail = body.detail;
-    } catch {
-      /* non-JSON error body */
-    }
-    throw new Error(detail);
-  }
+  if (!res.ok) throw await extractFetchError(res);
 
   return (await res.json()) as TranscriptionResult;
 }
@@ -63,16 +66,7 @@ export async function renotate(
     body: JSON.stringify({ midiBase64, tempo, timeSignature }),
   });
 
-  if (!res.ok) {
-    let detail = `Request failed (${res.status})`;
-    try {
-      const body = await res.json();
-      if (body?.detail) detail = body.detail;
-    } catch {
-      /* non-JSON error body */
-    }
-    throw new Error(detail);
-  }
+  if (!res.ok) throw await extractFetchError(res);
 
   return (await res.json()) as RenotateResult;
 }

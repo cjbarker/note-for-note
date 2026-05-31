@@ -26,7 +26,7 @@ class TranscribeResponse(BaseModel):
 class RenotateRequest(BaseModel):
     midiBase64: str
     tempo: float | None = Field(default=None, gt=0)
-    timeSignature: str = "4/4"
+    timeSignature: str = Field(default="4/4", pattern=r"^\d{1,2}/\d{1,2}$")
     splitPoint: int = Field(default=60, ge=0, le=127)
 
 
