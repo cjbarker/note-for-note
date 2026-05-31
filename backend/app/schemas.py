@@ -32,4 +32,5 @@ class RenotateRequest(BaseModel):
 
 class RenotateResponse(BaseModel):
     musicXml: str
+    midiBase64: str
     stats: Stats

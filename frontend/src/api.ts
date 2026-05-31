@@ -12,6 +12,7 @@ export interface TranscriptionStats {
 
 export interface RenotateResult {
   musicXml: string;
+  midiBase64: string;
   stats: TranscriptionStats;
 }
 

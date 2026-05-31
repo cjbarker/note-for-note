@@ -146,13 +146,14 @@ async def transcribe(
 def _run_renotate(req: RenotateRequest) -> RenotateResponse:
     """Fast notation-only re-render from previously transcribed MIDI."""
     midi_data = base64.b64decode(req.midiBase64)
-    music_xml, stats = notation.renotate_from_midi_bytes(
+    music_xml, stats, out_midi = notation.renotate_from_midi_bytes(
         midi_data,
         tempo=req.tempo,
         time_signature=req.timeSignature,
         split_point=req.splitPoint,
     )
-    return RenotateResponse(musicXml=music_xml, stats=_to_stats(stats))
+    midi_b64 = base64.b64encode(out_midi).decode("ascii")
+    return RenotateResponse(musicXml=music_xml, midiBase64=midi_b64, stats=_to_stats(stats))
 
 
 @app.post("/api/renotate", response_model=RenotateResponse)

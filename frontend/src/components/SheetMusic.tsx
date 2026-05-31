@@ -41,6 +41,8 @@ export default function SheetMusic({ result, audioBlob }: Props) {
   // track it in state, re-initialized whenever a new transcription arrives.
   const [musicXml, setMusicXml] = useState(result.musicXml);
   const [stats, setStats] = useState<TranscriptionStats>(result.stats);
+  // MIDI follows re-notation (tempo changes) so playback/download match the score.
+  const [midiBase64, setMidiBase64] = useState(result.midiBase64);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
@@ -58,6 +60,7 @@ export default function SheetMusic({ result, audioBlob }: Props) {
   useEffect(() => {
     setMusicXml(result.musicXml);
     setStats(result.stats);
+    setMidiBase64(result.midiBase64);
   }, [result]);
 
   useEffect(() => {
@@ -97,9 +100,10 @@ export default function SheetMusic({ result, audioBlob }: Props) {
       <NotationControls
         midiBase64={result.midiBase64}
         stats={stats}
-        onRenotated={(xml, st) => {
+        onRenotated={(xml, st, midi) => {
           setMusicXml(xml);
           setStats(st);
+          setMidiBase64(midi);
         }}
       />
 
@@ -116,7 +120,7 @@ export default function SheetMusic({ result, audioBlob }: Props) {
           <div className="player-block">
             <span className="playback-label">Transcription (QA)</span>
             <Suspense fallback={<span className="playback-loading">Loading player…</span>}>
-              <MidiPlayer midiBase64={result.midiBase64} />
+              <MidiPlayer midiBase64={midiBase64} />
             </Suspense>
           </div>
         </div>
@@ -168,7 +172,7 @@ export default function SheetMusic({ result, audioBlob }: Props) {
         </button>
         <button
           className="button small"
-          onClick={() => download(midiBlobFromBase64(result.midiBase64), "transcription.mid")}
+          onClick={() => download(midiBlobFromBase64(midiBase64), "transcription.mid")}
         >
           Download MIDI
         </button>

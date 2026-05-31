@@ -7,7 +7,7 @@ import { renotate, type TranscriptionStats } from "../api";
 interface Props {
   midiBase64: string;
   stats: TranscriptionStats;
-  onRenotated: (musicXml: string, stats: TranscriptionStats) => void;
+  onRenotated: (musicXml: string, stats: TranscriptionStats, midiBase64: string) => void;
 }
 
 const TIME_SIGNATURES = ["4/4", "3/4", "2/4", "6/8", "3/8", "2/2"];
@@ -40,7 +40,7 @@ export default function NotationControls({ midiBase64, stats, onRenotated }: Pro
       setError(null);
       try {
         const r = await renotate(midiBase64, bpm, timeSig);
-        onRenotatedRef.current(r.musicXml, r.stats);
+        onRenotatedRef.current(r.musicXml, r.stats, r.midiBase64);
       } catch (err) {
         setError((err as Error).message);
       } finally {

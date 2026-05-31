@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import AudioInput from "./components/AudioInput";
-import SheetMusic from "./components/SheetMusic";
 import { transcribe, type TranscriptionResult } from "./api";
+
+// Lazy-loaded so OpenSheetMusicDisplay (the bulk of the bundle) isn't shipped on
+// the landing page — it loads only once the first transcription returns.
+const SheetMusic = lazy(() => import("./components/SheetMusic"));
 
 export default function App() {
   const [result, setResult] = useState<TranscriptionResult | null>(null);
@@ -42,7 +45,11 @@ export default function App() {
       {busy && <p className="status">Transcribing… (the first run loads the model and may take a moment)</p>}
       {error && <p className="error">{error}</p>}
 
-      {result && <SheetMusic result={result} audioBlob={audioBlob} />}
+      {result && (
+        <Suspense fallback={<p className="status">Loading score…</p>}>
+          <SheetMusic result={result} audioBlob={audioBlob} />
+        </Suspense>
+      )}
 
       <footer>
         <p>

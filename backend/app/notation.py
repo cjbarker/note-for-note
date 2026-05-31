@@ -197,13 +197,15 @@ def renotate_from_midi_bytes(
     tempo: float | None = None,
     time_signature: str = DEFAULT_TIME_SIGNATURE,
     split_point: int = DEFAULT_SPLIT_POINT,
-) -> tuple[str, TranscriptionStats]:
+) -> tuple[str, TranscriptionStats, bytes]:
     """Re-run only the (fast) notation step from raw MIDI bytes.
 
     Lets the UI re-render with a new tempo / time signature without paying for a
-    fresh basic-pitch inference pass.
+    fresh basic-pitch inference pass. Also returns a MIDI re-timed to ``tempo`` so
+    playback/download stay in sync with the re-rendered notation.
     """
     midi = pretty_midi.PrettyMIDI(io.BytesIO(data))
     xml = midi_to_musicxml(midi, tempo, time_signature, split_point)
     stats = compute_stats(midi, tempo_bpm=tempo, time_signature=time_signature)
-    return xml, stats
+    out_midi = _retempo_midi(midi, tempo) if (tempo and tempo > 0) else midi
+    return xml, stats, midi_bytes(out_midi)

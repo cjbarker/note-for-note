@@ -107,11 +107,20 @@ def test_tempo_affects_note_durations(melody_midi):
 def test_renotate_round_trips(melody_midi):
     midi_b64 = base64.b64encode(notation.midi_bytes(melody_midi)).decode("ascii")
     data = base64.b64decode(midi_b64)
-    xml, stats = notation.renotate_from_midi_bytes(data, tempo=90, time_signature="3/4")
+    xml, stats, out_midi = notation.renotate_from_midi_bytes(
+        data, tempo=90, time_signature="3/4"
+    )
     assert "<score-partwise" in xml or "<?xml" in xml
     assert stats.time_signature == "3/4"
     assert stats.tempo_bpm == 90.0
     assert stats.note_count == sum(len(i.notes) for i in melody_midi.instruments)
+    # A re-timed MIDI is returned so playback matches the re-rendered notation:
+    # its tempo metadata should reflect the requested 90 BPM.
+    import pretty_midi
+
+    retimed = pretty_midi.PrettyMIDI(io.BytesIO(out_midi))
+    _times, tempi = retimed.get_tempo_changes()
+    assert len(tempi) >= 1 and abs(float(tempi[0]) - 90.0) < 1.0
 
 
 def test_non_wav_requires_ffmpeg_or_raises():
