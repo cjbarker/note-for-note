@@ -24,6 +24,8 @@ import soundfile as sf
 TARGET_SR = 22050
 
 WAV_EXTENSIONS = {".wav", ".wave"}
+# Formats soundfile can decode without ffmpeg — try these before falling back.
+SOUNDFILE_EXTENSIONS = {".flac", ".ogg", ".oga", ".aiff", ".aif"}
 
 
 class AudioDecodeError(RuntimeError):
@@ -104,8 +106,9 @@ def load_audio(data: bytes, filename: str | None = None) -> tuple[np.ndarray, in
     if ext in WAV_EXTENSIONS:
         return _decode_wav(data)
 
-    # soundfile can also handle FLAC/OGG without ffmpeg; try it opportunistically.
-    if (result := _decode_soundfile(data)) is not None:
+    # soundfile can also decode FLAC/OGG/AIFF without ffmpeg; try it only for
+    # known-compatible extensions to avoid an unnecessary decode attempt.
+    if ext in SOUNDFILE_EXTENSIONS and (result := _decode_soundfile(data)) is not None:
         return result
 
     # Fallback: librosa -> audioread -> ffmpeg for everything else (mp3, m4a, webm...).
