@@ -4,6 +4,12 @@
 import { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
 import { downloadBlob } from "./lib/download";
 
+// Cached hidden OSMD instance, container, and backend type so repeated
+// exports of the same score don't pay the cost of creating a new instance.
+let _hiddenContainer: HTMLDivElement | null = null;
+let _hiddenOsmd: OpenSheetMusicDisplay | null = null;
+let _hiddenBackend: "svg" | "canvas" | null = null;
+
 // Render MusicXML into a hidden, off-screen OSMD instance and return its
 // container so the caller can pull out the produced <svg>/<canvas> nodes.
 // The container is positioned off-screen with a real width — `display:none`
@@ -12,6 +18,28 @@ async function renderHidden(
   musicXml: string,
   opts: { backend: "svg" | "canvas"; pageFormat?: string; zoom?: number }
 ): Promise<HTMLDivElement> {
+  // Reuse cached instance when the backend matches (svg vs. canvas are
+  // incompatible — each needs its own OSMD instance).
+  if (
+    _hiddenOsmd &&
+    _hiddenContainer &&
+    _hiddenBackend === opts.backend
+  ) {
+    await _hiddenOsmd.load(musicXml);
+    if (opts.pageFormat) _hiddenOsmd.setPageFormat(opts.pageFormat);
+    if (opts.zoom) _hiddenOsmd.zoom = opts.zoom;
+    _hiddenOsmd.render();
+    return _hiddenContainer;
+  }
+
+  // Discard previous cached container (backend changed or first call).
+  if (_hiddenContainer) {
+    _hiddenContainer.remove();
+    _hiddenContainer = null;
+    _hiddenOsmd = null;
+    _hiddenBackend = null;
+  }
+
   const container = document.createElement("div");
   container.style.position = "fixed";
   container.style.left = "-10000px";
@@ -29,6 +57,10 @@ async function renderHidden(
   await osmd.load(musicXml);
   if (opts.pageFormat) osmd.setPageFormat(opts.pageFormat);
   osmd.render();
+
+  _hiddenContainer = container;
+  _hiddenOsmd = osmd;
+  _hiddenBackend = opts.backend;
   return container;
 }
 
@@ -43,27 +75,23 @@ export function exportSvg(svgEl: SVGElement, filename = "transcription.svg") {
 // correctly) at 2x for crispness, composite onto white, and download.
 export async function exportPng(musicXml: string, filename = "transcription.png") {
   const container = await renderHidden(musicXml, { backend: "canvas", zoom: 2 });
-  try {
-    const rendered = container.querySelector("canvas") as HTMLCanvasElement | null;
-    if (!rendered) throw new Error("Canvas render produced no canvas element.");
+  const rendered = container.querySelector("canvas") as HTMLCanvasElement | null;
+  if (!rendered) throw new Error("Canvas render produced no canvas element.");
 
-    // Flatten onto a white background (the rendered canvas may be transparent).
-    const out = document.createElement("canvas");
-    out.width = rendered.width;
-    out.height = rendered.height;
-    const ctx = out.getContext("2d");
-    if (!ctx) throw new Error("Could not get a 2D canvas context.");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, out.width, out.height);
-    ctx.drawImage(rendered, 0, 0);
+  // Flatten onto a white background (the rendered canvas may be transparent).
+  const out = document.createElement("canvas");
+  out.width = rendered.width;
+  out.height = rendered.height;
+  const ctx = out.getContext("2d");
+  if (!ctx) throw new Error("Could not get a 2D canvas context.");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.drawImage(rendered, 0, 0);
 
-    const blob: Blob = await new Promise((resolve, reject) =>
-      out.toBlob((b) => (b ? resolve(b) : reject(new Error("PNG encoding failed."))), "image/png")
-    );
-    downloadBlob(blob, filename);
-  } finally {
-    container.remove();
-  }
+  const blob: Blob = await new Promise((resolve, reject) =>
+    out.toBlob((b) => (b ? resolve(b) : reject(new Error("PNG encoding failed."))), "image/png")
+  );
+  downloadBlob(blob, filename);
 }
 
 // PDF: render at A4 portrait (multi-page) and place each page's SVG into the PDF
@@ -72,19 +100,15 @@ export async function exportPng(musicXml: string, filename = "transcription.png"
 export async function exportPdf(musicXml: string, filename = "transcription.pdf") {
   const [{ jsPDF }] = await Promise.all([import("jspdf"), import("svg2pdf.js")]);
   const container = await renderHidden(musicXml, { backend: "svg", pageFormat: "A4_P" });
-  try {
-    const svgs = Array.from(container.querySelectorAll("svg")) as SVGElement[];
-    if (svgs.length === 0) throw new Error("PDF render produced no pages.");
+  const svgs = Array.from(container.querySelectorAll("svg")) as SVGElement[];
+  if (svgs.length === 0) throw new Error("PDF render produced no pages.");
 
-    const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
-    const w = pdf.internal.pageSize.getWidth();
-    const h = pdf.internal.pageSize.getHeight();
-    for (let i = 0; i < svgs.length; i++) {
-      if (i > 0) pdf.addPage("a4", "portrait");
-      await pdf.svg(svgs[i], { x: 0, y: 0, width: w, height: h });
-    }
-    pdf.save(filename);
-  } finally {
-    container.remove();
+  const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+  const w = pdf.internal.pageSize.getWidth();
+  const h = pdf.internal.pageSize.getHeight();
+  for (let i = 0; i < svgs.length; i++) {
+    if (i > 0) pdf.addPage("a4", "portrait");
+    await pdf.svg(svgs[i], { x: 0, y: 0, width: w, height: h });
   }
+  pdf.save(filename);
 }
