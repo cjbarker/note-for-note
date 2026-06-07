@@ -20,11 +20,7 @@ async function renderHidden(
 ): Promise<HTMLDivElement> {
   // Reuse cached instance when the backend matches (svg vs. canvas are
   // incompatible — each needs its own OSMD instance).
-  if (
-    _hiddenOsmd &&
-    _hiddenContainer &&
-    _hiddenBackend === opts.backend
-  ) {
+  if (_hiddenOsmd && _hiddenContainer && _hiddenBackend === opts.backend) {
     await _hiddenOsmd.load(musicXml);
     if (opts.pageFormat) _hiddenOsmd.setPageFormat(opts.pageFormat);
     if (opts.zoom) _hiddenOsmd.zoom = opts.zoom;

@@ -7,7 +7,12 @@ import { renotate, type TranscriptionStats } from "../api";
 interface Props {
   midiBase64: string;
   stats: TranscriptionStats;
-  onRenotated: (musicXml: string, stats: TranscriptionStats, midiBase64: string, splitPoint?: number) => void;
+  onRenotated: (
+    musicXml: string,
+    stats: TranscriptionStats,
+    midiBase64: string,
+    splitPoint?: number
+  ) => void;
 }
 
 const TIME_SIGNATURES = ["4/4", "3/4", "2/4", "6/8", "3/8", "2/2"];
@@ -40,7 +45,8 @@ export default function NotationControls({ midiBase64, stats, onRenotated }: Pro
       bpm === Math.round(stats.tempo_bpm) &&
       timeSig === stats.time_signature &&
       splitPoint === DEFAULT_SPLIT_POINT
-    ) return;
+    )
+      return;
 
     const handle = window.setTimeout(async () => {
       setBusy(true);
