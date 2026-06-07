@@ -14,15 +14,18 @@ MIDI, so the UI can change tempo/time-signature without re-running inference.
 from __future__ import annotations
 
 import base64
+import binascii
 import logging
 import os
 import re
 import shutil
+import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from . import audio, notation, transcription
 from .schemas import (
@@ -38,6 +41,10 @@ from .schemas import (
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB
 # Cap audio duration so a single long clip can't monopolize a threadpool worker.
 MAX_AUDIO_SECONDS = 600  # 10 minutes
+# Whitelist of allowed audio file extensions.
+ALLOWED_AUDIO_EXTENSIONS = {
+    ".wav", ".mp3", ".flac", ".ogg", ".oga", ".m4a", ".webm", ".aiff", ".aif", ".aac", ".wma",
+}
 
 logger = logging.getLogger("note_for_note")
 
@@ -57,11 +64,15 @@ _origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
 _frontend_origin = os.environ.get("FRONTEND_ORIGIN", "").strip()
 if _frontend_origin:
     # Validate the origin is a well-formed URL scheme before trusting it.
-    if _frontend_origin.startswith(("http://", "https://")):
-        _origins.append(_frontend_origin)
+    from urllib.parse import urlparse
+
+    parsed = urlparse(_frontend_origin)
+    if parsed.scheme in ("http", "https") and parsed.netloc:
+        _origins.append(parsed.geturl())
     else:
         logger.warning(
-            "FRONTEND_ORIGIN=%r ignored — must start with http:// or https://",
+            "FRONTEND_ORIGIN=%r ignored — must be a well-formed URL "
+            "with http/https scheme and a netloc",
             _frontend_origin,
         )
 
@@ -71,6 +82,18 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type"],
 )
+
+# Request-ID middleware: generates a UUID per request and attaches it to
+# the response header and the logging context for tracing.
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
+
+app.add_middleware(RequestIDMiddleware)
 
 
 def _validate_time_signature(time_signature: str) -> None:
@@ -96,6 +119,7 @@ def _to_stats(stats: notation.TranscriptionStats) -> Stats:
         duration_seconds=stats.duration_seconds,
         tempo_bpm=stats.tempo_bpm,
         time_signature=stats.time_signature,
+        key_signature=stats.key_signature,
     )
 
 
@@ -138,6 +162,14 @@ async def transcribe(
             status_code=413,
             detail=f"Audio too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB).",
         )
+    # Validate file extension against an allowlist.
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in ALLOWED_AUDIO_EXTENSIONS:
+        allowed = ", ".join(sorted(ALLOWED_AUDIO_EXTENSIONS))
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported format: {ext}. Allowed: {allowed}.",
+        )
     if tempo is not None and tempo <= 0:
         raise HTTPException(status_code=400, detail="Tempo must be a positive BPM.")
     _validate_time_signature(time_signature)
@@ -148,8 +180,11 @@ async def transcribe(
         raise HTTPException(status_code=413, detail=str(exc)) from exc
     except audio.AudioDecodeError as exc:
         raise HTTPException(status_code=415, detail=str(exc)) from exc
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("Transcription failed (filename=%r)", file.filename)
+    except transcription.TranscriptionError as exc:
+        logger.warning("Transcription error (filename=%r): %s", file.filename, exc)
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Unexpected error during transcription (filename=%r)", file.filename)
         raise HTTPException(
             status_code=500,
             detail="Transcription failed. Please try again or contact support.",
@@ -175,6 +210,11 @@ async def renotate(req: RenotateRequest) -> RenotateResponse:
         raise HTTPException(status_code=400, detail="Missing midiBase64.")
     try:
         return await run_in_threadpool(_run_renotate, req)
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("Renotation failed")
+    except notation.NotationError as exc:
+        logger.warning("Renotation error: %s", exc)
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except binascii.Error as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid base64 MIDI data: {exc}") from exc
+    except Exception as exc:
+        logger.exception("Unexpected error during renotation")
         raise HTTPException(status_code=400, detail="Renotation failed. Please try again.") from exc

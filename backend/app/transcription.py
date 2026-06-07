@@ -13,6 +13,10 @@ from dataclasses import dataclass
 
 import pretty_midi
 
+
+class TranscriptionError(RuntimeError):
+    """Raised when transcription fails."""
+
 # Piano keyboard range: A0 (~27.5 Hz) to C8 (~4186 Hz). Constraining the model
 # to this range reduces spurious out-of-range detections.
 PIANO_MIN_FREQ = 27.5

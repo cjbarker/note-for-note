@@ -23,6 +23,10 @@ import pretty_midi
 from . import _music21
 from .audio import _safe_unlink
 
+
+class NotationError(RuntimeError):
+    """Raised when notation conversion fails."""
+
 logger = logging.getLogger("note_for_note")
 
 # Default split point between the two hands: middle C (MIDI 60). Notes >= this go
@@ -37,6 +41,7 @@ class TranscriptionStats:
     duration_seconds: float
     tempo_bpm: float
     time_signature: str = DEFAULT_TIME_SIGNATURE
+    key_signature: str = ""
 
 
 def midi_bytes(midi: pretty_midi.PrettyMIDI) -> bytes:
@@ -62,12 +67,50 @@ def compute_stats(
             except ValueError:
                 # estimate_tempo needs >=2 onsets; fall back to 120.
                 tempo_bpm = 120.0
+    key_sig = _estimate_key_signature(midi)
     return TranscriptionStats(
         note_count=note_count,
         duration_seconds=round(float(duration), 3),
         tempo_bpm=round(float(tempo_bpm), 1),
         time_signature=time_signature,
+        key_signature=key_sig,
     )
+
+
+def _estimate_key_signature(midi: pretty_midi.PrettyMIDI) -> str:
+    """Estimate the key signature from note distribution using music21.
+
+    Returns an empty string if estimation is not possible.
+    """
+    try:
+        #key = _music21.key  # type: ignore[attr-defined]
+        analyzer = _music21.analysis  # type: ignore[attr-defined]
+
+        # Collect all pitches from all instruments.
+        pitches = []
+        for inst in midi.instruments:
+            for note in inst.notes:
+                pitches.append(note.pitch.midi)
+
+        if not pitches:
+            return ""
+
+        # Build a music21 stream and run krumhansl-schmuckler key estimation.
+        stream_obj = _music21.stream.Score()  # type: ignore[attr-defined]
+        part = _music21.stream.Part()  # type: ignore[attr-defined]
+        for m in pitches:
+            n = _music21.note.Note(m)  # type: ignore[attr-defined]
+            n.duration.type = "quarter"
+            part.append(n)
+        stream_obj.append(part)
+
+        # Use krumhansl-schmuckler (default in music21).
+        result = analyzer.analyze(stream_obj, method="krumhansl")
+        if result is not None:
+            return str(result.key_name)  # e.g. "C major", "G minor"
+    except Exception:
+        logger.warning("Key signature estimation failed", exc_info=True)
+    return ""
 
 
 def _retempo_midi(midi: pretty_midi.PrettyMIDI, tempo_bpm: float) -> pretty_midi.PrettyMIDI:
@@ -125,7 +168,7 @@ def _split_to_grand_staff(score, split_point: int):
 
     # Accessing _music21.layout triggers the lazy import (via __getattr__) so
     # we don't have to import music21 at module load time.
-    _music21.layout  # type: ignore[attr-defined]
+    _music21.layout  # noqa
     return treble, bass
 
 

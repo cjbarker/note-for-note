@@ -85,3 +85,18 @@ def test_midi_bytes_round_trips():
     data = notation.midi_bytes(midi)
     reloaded = pretty_midi.PrettyMIDI(io.BytesIO(data))
     assert sum(len(i.notes) for i in reloaded.instruments) == 1
+
+
+def test_decode_soundfile_flac_via_soundfile():
+    """soundfile can decode WAV/FLAC data directly (no ffmpeg)."""
+    data = wav_bytes(sine(440.0, 0.2), sr=SR)
+    result = audio._decode_soundfile(data)
+    assert result is not None
+    samples, sr = result
+    assert samples.ndim == 1
+    assert sr == SR
+
+
+def test_decode_soundfile_returns_none_on_bad_data():
+    result = audio._decode_soundfile(b"not audio data at all")
+    assert result is None

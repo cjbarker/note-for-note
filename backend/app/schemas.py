@@ -19,6 +19,7 @@ class Stats(BaseModel):
     duration_seconds: float
     tempo_bpm: float
     time_signature: str = "4/4"
+    key_signature: str = ""
 
 
 class TranscribeResponse(BaseModel):
@@ -31,7 +32,7 @@ class RenotateRequest(BaseModel):
     midiBase64: str
     tempo: float | None = Field(default=None, gt=0)
     timeSignature: str = Field(default="4/4", pattern=TIME_SIG_PATTERN)
-    splitPoint: int = Field(default=60, ge=0, le=127)
+    splitPoint: int = Field(default=60, ge=0, le=127, title="Split point (MIDI note, 0-127)")
 
 
 class RenotateResponse(BaseModel):

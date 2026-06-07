@@ -61,6 +61,13 @@ def test_full_pipeline_detects_notes(melody_midi):
     assert stats.duration_seconds > 0
 
 
+def test_compute_stats_includes_key_signature(melody_midi):
+    stats = notation.compute_stats(melody_midi)
+    assert hasattr(stats, "key_signature")
+    # Key signature may be empty if estimation fails, but the field must exist.
+    assert isinstance(stats.key_signature, str)
+
+
 def test_grand_staff_in_musicxml(melody_midi):
     xml = notation.midi_to_musicxml(melody_midi)
     # A grand staff exports as a 2-staff part and/or a braced part-group.

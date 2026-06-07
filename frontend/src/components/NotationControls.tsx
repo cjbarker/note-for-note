@@ -7,14 +7,16 @@ import { renotate, type TranscriptionStats } from "../api";
 interface Props {
   midiBase64: string;
   stats: TranscriptionStats;
-  onRenotated: (musicXml: string, stats: TranscriptionStats, midiBase64: string) => void;
+  onRenotated: (musicXml: string, stats: TranscriptionStats, midiBase64: string, splitPoint?: number) => void;
 }
 
 const TIME_SIGNATURES = ["4/4", "3/4", "2/4", "6/8", "3/8", "2/2"];
+const DEFAULT_SPLIT_POINT = 60; // middle C
 
 export default function NotationControls({ midiBase64, stats, onRenotated }: Props) {
   const [bpm, setBpm] = useState(Math.round(stats.tempo_bpm));
   const [timeSig, setTimeSig] = useState(stats.time_signature);
+  const [splitPoint, setSplitPoint] = useState(DEFAULT_SPLIT_POINT);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,6 +24,7 @@ export default function NotationControls({ midiBase64, stats, onRenotated }: Pro
   useEffect(() => {
     setBpm(Math.round(stats.tempo_bpm));
     setTimeSig(stats.time_signature);
+    setSplitPoint(DEFAULT_SPLIT_POINT);
     setError(null);
     // Keyed on midiBase64 so a renotate (which updates stats) doesn't reset us.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -33,14 +36,18 @@ export default function NotationControls({ midiBase64, stats, onRenotated }: Pro
   useEffect(() => {
     // Skip when the controls already match the current notation (incl. mount
     // and the state right after a successful renotate) — avoids redundant calls.
-    if (bpm === Math.round(stats.tempo_bpm) && timeSig === stats.time_signature) return;
+    if (
+      bpm === Math.round(stats.tempo_bpm) &&
+      timeSig === stats.time_signature &&
+      splitPoint === DEFAULT_SPLIT_POINT
+    ) return;
 
     const handle = window.setTimeout(async () => {
       setBusy(true);
       setError(null);
       try {
-        const r = await renotate(midiBase64, bpm, timeSig);
-        onRenotatedRef.current(r.musicXml, r.stats, r.midiBase64);
+        const r = await renotate(midiBase64, bpm, timeSig, splitPoint);
+        onRenotatedRef.current(r.musicXml, r.stats, r.midiBase64, splitPoint);
       } catch (err) {
         setError((err as Error).message);
       } finally {
@@ -49,7 +56,7 @@ export default function NotationControls({ midiBase64, stats, onRenotated }: Pro
     }, 500);
     return () => window.clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bpm, timeSig]);
+  }, [bpm, timeSig, splitPoint]);
 
   return (
     <div className="notation-controls">
@@ -74,6 +81,18 @@ export default function NotationControls({ midiBase64, stats, onRenotated }: Pro
             </option>
           ))}
         </select>
+      </label>
+      <label htmlFor="nfn-split">
+        Split
+        <input
+          id="nfn-split"
+          type="range"
+          min={0}
+          max={127}
+          value={splitPoint}
+          onChange={(e) => setSplitPoint(Number(e.target.value))}
+        />
+        <span className="unit">MIDI {splitPoint}</span>
       </label>
       {busy && (
         <span className="notation-status" role="status">

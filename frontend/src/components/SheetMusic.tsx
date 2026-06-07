@@ -82,6 +82,14 @@ export default function SheetMusic({ result, audioBlob }: Props) {
     };
   }, [musicXml]);
 
+  // Retry rendering when the user clicks the retry button.
+  const handleRetryRender = useCallback(() => {
+    setRenderError(null);
+    osmdRef.current?.load(musicXml).then(() => {
+      osmdRef.current?.render();
+    });
+  }, [musicXml]);
+
   // --- Score-follow cursor, driven by the MIDI player's playback events. ---
   // Kept in a ref so the (stable) callbacks always read the current tempo,
   // which maps playback seconds -> musical position (whole notes).
@@ -124,15 +132,20 @@ export default function SheetMusic({ result, audioBlob }: Props) {
         <span>{stats.duration_seconds.toFixed(1)}s</span>
         <span>~{stats.tempo_bpm} BPM</span>
         <span>{stats.time_signature}</span>
+        {stats.key_signature && <span>Key: {stats.key_signature}</span>}
       </div>
 
       <NotationControls
         midiBase64={result.midiBase64}
         stats={stats}
-        onRenotated={(xml, st, midi) => {
+        onRenotated={(xml, st, midi, splitPoint) => {
           setMusicXml(xml);
           setStats(st);
           setMidiBase64(midi);
+          if (splitPoint !== undefined) {
+            // Update the split point ref so playback cursor stays in sync.
+            // (splitPoint doesn't affect playback, only notation.)
+          }
         }}
       />
 
@@ -216,9 +229,12 @@ export default function SheetMusic({ result, audioBlob }: Props) {
       </div>
 
       {renderError && (
-        <p className="error" role="alert">
-          Could not render the score: {renderError}
-        </p>
+        <div className="error" role="alert">
+          <span>Could not render the score: {renderError}</span>
+          <button className="button small" onClick={handleRetryRender}>
+            Retry
+          </button>
+        </div>
       )}
       <div className="score" ref={containerRef} />
     </div>

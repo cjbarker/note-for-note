@@ -46,7 +46,29 @@ describe("NotationControls", () => {
     });
 
     expect(api.renotate).toHaveBeenCalledTimes(1);
-    expect(api.renotate).toHaveBeenCalledWith("abc", 90, "4/4");
-    expect(onRenotated).toHaveBeenCalledWith(result.musicXml, result.stats, result.midiBase64);
+    expect(api.renotate).toHaveBeenCalledWith("abc", 90, "4/4", 60);
+    expect(onRenotated).toHaveBeenCalledWith(result.musicXml, result.stats, result.midiBase64, 60);
+  });
+
+  it("sends the split point when it changes", async () => {
+    const result = {
+      musicXml: "<score/>",
+      midiBase64: "re-timed",
+      stats: { ...stats, tempo_bpm: 120, time_signature: "4/4" },
+    };
+    vi.mocked(api.renotate).mockResolvedValue(result);
+    const onRenotated = vi.fn();
+
+    render(<NotationControls midiBase64="abc" stats={stats} onRenotated={onRenotated} />);
+
+    // Change the split point slider.
+    fireEvent.change(screen.getByRole("slider"), { target: { value: "72" } });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600);
+    });
+
+    expect(api.renotate).toHaveBeenCalledTimes(1);
+    expect(api.renotate).toHaveBeenCalledWith("abc", 120, "4/4", 72);
   });
 });

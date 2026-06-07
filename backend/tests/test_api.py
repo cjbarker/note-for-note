@@ -79,6 +79,15 @@ def test_transcribe_oversized(client, monkeypatch):
     assert r.status_code == 413
 
 
+def test_transcribe_unsupported_format(client):
+    r = client.post(
+        "/api/transcribe",
+        files={"file": ("script.py", b"print('hello')", "text/plain")},
+    )
+    assert r.status_code == 415
+    assert "Unsupported format" in r.json()["detail"]
+
+
 def test_renotate_round_trip(client, melody_midi):
     midi_b64 = base64.b64encode(notation.midi_bytes(melody_midi)).decode("ascii")
     r = client.post(

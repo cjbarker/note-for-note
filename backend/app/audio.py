@@ -66,6 +66,11 @@ def _decode_soundfile(data: bytes) -> tuple[np.ndarray, int] | None:
 
     Returns ``None`` if soundfile cannot decode the data (e.g. unsupported format).
     """
+    try:
+        samples, sr = sf.read(io.BytesIO(data), dtype="float32", always_2d=False)
+        return _to_mono(samples), int(sr)
+    except sf.SoundFileError:
+        return None
 
 
 def _decode_librosa(data: bytes, ext: str) -> tuple[np.ndarray, int]:
@@ -85,7 +90,7 @@ def _decode_librosa(data: bytes, ext: str) -> tuple[np.ndarray, int]:
         tmp.close()  # close the handle so librosa can open it
         samples, sr = librosa.load(tmp_path, sr=None, mono=True)
         return np.asarray(samples, dtype=np.float32), int(sr)
-    except (OSError, IOError) as exc:
+    except OSError as exc:
         raise AudioDecodeError(
             "Could not decode audio. For non-WAV formats, ffmpeg must be installed "
             f"on the server. Underlying error: {exc}"
