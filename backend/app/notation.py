@@ -215,8 +215,11 @@ def _legato_quantize_midi(
 
     This two-step cleanup:
       1. **Legato fill** — extends each note's end to meet the next note's
-         start when the gap is ≤ one beat, so note durations cover the full
-         inter-onset interval.
+         start when the gap is ≤ one beat *and the notes share the same pitch*,
+         so note durations cover the full inter-onset interval.  Gaps between
+         notes of different pitches are *not* filled because extending them
+         would cause the earlier note to overlap the later one, which music21
+         then misinterprets as a chord.
       2. **Grid snap** — rounds start/end times to the nearest eighth-note
          position so the MIDI ticks that music21 reads are already aligned to
          clean rhythmic values.
@@ -235,11 +238,15 @@ def _legato_quantize_midi(
 
         for i, n in enumerate(notes):
             end = n.end
-            # Find the next non-simultaneous note and fill any small gap.
+            # Find the next non-simultaneous note of the *same pitch* and fill
+            # any small gap so consecutive same-pitch notes merge into one
+            # clean duration.  Gaps between different pitches are left alone;
+            # extending them would make the earlier note overlap the later one,
+            # which music21 would then render as a chord.
             for j in range(i + 1, len(notes)):
                 if notes[j].start - n.start > sim_thresh:
                     gap = notes[j].start - end
-                    if 0 < gap <= beat_dur:
+                    if 0 < gap <= beat_dur and notes[j].pitch == n.pitch:
                         end = notes[j].start
                     break
 
