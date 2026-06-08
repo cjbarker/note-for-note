@@ -1,1 +1,1 @@
-"""Note-for-Note backend application package."""
+"""Note-4-Note backend application package."""

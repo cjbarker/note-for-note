@@ -1,4 +1,4 @@
-# Note-for-Note — Frontend
+# Note-4-Note — Frontend
 
 React + TypeScript + Vite single-page app. It captures piano audio (file upload or
 live mic), sends it to the backend for transcription, renders the resulting

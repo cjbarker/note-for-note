@@ -71,6 +71,12 @@ header h1 {
   color: #e0464b;
 }
 
+.button.denied {
+  border-color: #e0464b;
+  color: #e0464b;
+  opacity: 0.6;
+}
+
 .button.small {
   padding: 0.4rem 0.8rem;
   font-size: 0.85rem;
@@ -209,15 +215,21 @@ header h1 {
 }
 
 .midi-player midi-player {
-  width: 100%;
+  width: 280px;
+  max-width: 100%;
 }
 
+/* Fixed-size, scrollable piano-roll container */
 .midi-player midi-visualizer {
   margin-top: 0.6rem;
   border: 1px solid #e3e6ef;
   border-radius: 8px;
-  max-height: 200px;
-  overflow: auto;
+  height: 160px;
+  width: 280px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: auto;
+  display: block;
 }
 
 .score {

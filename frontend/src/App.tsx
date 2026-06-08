@@ -33,7 +33,7 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <h1>Note-for-Note</h1>
+        <h1>Note-4-Note</h1>
         <p className="tagline">Play piano → get sheet music. Upload a clip or record live.</p>
       </header>
 

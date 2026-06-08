@@ -1,4 +1,4 @@
-# Note-for-Note — Backend
+# Note-4-Note — Backend
 
 FastAPI service that transcribes piano audio to sheet music. Dependencies are
 managed with [**uv**](https://docs.astral.sh/uv/).

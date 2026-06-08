@@ -57,7 +57,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Note-for-Note", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="Note-4-Note", version="0.4.0", lifespan=lifespan)
 
 # Allow the Vite dev server (and a configurable extra origin) to call the API.
 _origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
